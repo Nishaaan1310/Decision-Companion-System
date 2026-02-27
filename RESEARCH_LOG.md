@@ -2,7 +2,7 @@
 
 how decision companion systems are created
 
-# GOOGLE GEMINI 3.1 prompts
+# GOOGLE GEMINI 3.1 prompts 
 
 how does ai makes descision? what are the steps that leads to a decision. explain
 
@@ -14,7 +14,7 @@ question: how does the system understand the evaluation weights/metrics/specific
 -> yes
 
 ->-> would you like me to explain the final, critical step of AHP, where the system calculates a "Consistency Ratio" to ensure the user wasn't mathematically contradicting themselves during the inputs?.
-->can you give an example for this too, and then yes
+-> can you give an example for this too, and then yes
 
 how consistency ratio is calculated
 
@@ -83,28 +83,47 @@ whats that const RI (Random Index) and whay its an array with limited values? do
 -> connecting the math engine (ahp.ts) to this page so we can see the real percentage weights calculate live!
 -> yes
 
-we will write the final HTML chunk to display these live weights and the CR warning beautifully on the screen.
+--> we will write the final HTML chunk to display these live weights and the CR warning beautifully on the screen.
+-> yes
 
 MVP is looking good on screen, would you like to move to Stage 2: building the UI to input the raw option data for the WSM evaluation?
+--> yes
 
-we will build the isolated DataCell.svelte component to handle the actual typing of numbers.
+--> we will build the isolated DataCell.svelte component to handle the actual typing of numbers.
+-> yes
 
-will move to the final UI step: building the data grid table on the main page to hold these cells.
+--> move to the final UI step: building the data grid table on the main page to hold these cells.
+-> yes
 
-we will write the final HTML table markup to loop over this data and display it neatly on the screen.
+--> we will write the final HTML table markup to loop over this data and display it neatly on the screen.
+-> yes
 
-wiring up the WSM engine to calculate and display the final ranked winner
+--> wiring up the WSM engine to calculate and display the final ranked winner
+-> yes
 
-I will provide the absolute final chunk of HTML and CSS to display the winning leaderboard on the screen, completing your MVP.
+--> I will provide the absolute final chunk of HTML and CSS to display the winning leaderboard on the screen, completing your MVP.
+-> yes
 
+list all the next steps
+
+i prefer criteria builder done first, sicne it directly add to required functionality of the system. evalauate this decision
+
+we will execute Step 1: writing the addCriterion and removeCriterion functions in your global store.
+
+we will build the neat, uncongested UI component (CriteriaBuilder.svelte) to let the user trigger these functions.
+
+we will build the neat, uncongested UI component (CriteriaBuilder.svelte) to let the user trigger these functions.
+
+we will write the HTML markup chunk that provides the neat, organized input fields and applies the locked button state you prefer for system visibility.
+
+deleting the hardcoded mock data in your main +page.svelte file and dropping this component in to make the entire application fully dynamic.
 
 # Response to AI outputs:
 
-Accepetd to use hybrid model for the evaluation engine.
+Accepetd to use hybrid model of ahp and wsm for the evaluation engine.
 Accepted suggestion about to use Svelte as framework.
 
-Accepted the code for decisionStore.ts
-Accepted the code for ahp.ts
+
 
 # Antigravity queries and prompts
 

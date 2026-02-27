@@ -2,22 +2,17 @@
     import { criteriaStore, comparisonsStore, optionsStore } from '$lib/stores/decisionStore';
     import AhpSlider from '$lib/components/AhpSlider.svelte';
     import DataCell from '$lib/components/DataCell.svelte';
-    
+    // NEW: Import our dynamic builder component
+    import CriteriaBuilder from '$lib/components/CriteriaBuilder.svelte';
     // 1. NEW: Import our decoupled math engine
     import { buildAhpMatrix, calculateWeights, calculateConsistencyRatio } from '$lib/engine/ahp';
     
     // 2. NEW: Import the WSM engine and our strictly typed interface
     import { normalizeScores, calculateWsmScores, type RankedOption } from '$lib/engine/wsm';
 
-    // Mock criteria for testing
-    $criteriaStore = [
-        { id: 'c1', name: 'Cost', isCost: true },
-        { id: 'c2', name: 'Performance', isCost: false },
-        { id: 'c3', name: 'Usability', isCost: false }
-    ];
-
     // Define an array to hold our unique pairwise combinations
     let pairs: Array<{idA: string, idB: string, nameA: string, nameB: string}> = [];
+
 
     // Svelte Reactive Statement: Generate pairs automatically
     $: {
@@ -138,6 +133,8 @@
         <h1>Decision Companion</h1>
         <p>Define your priorities by comparing criteria below.</p>
     </header>
+
+    <CriteriaBuilder />
 
     <section class="sliders-section">
         {#each pairs as pair}

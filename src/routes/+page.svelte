@@ -5,13 +5,17 @@
     // NEW: Import our dynamic builder component
     import CriteriaBuilder from '$lib/components/CriteriaBuilder.svelte';
 
-    // NEW: Import the decoupled Options Builder
-    import OptionsBuilder from '$lib/components/OptionsBuilder.svelte';
     // 1. NEW: Import our decoupled math engine
     import { buildAhpMatrix, calculateWeights, calculateConsistencyRatio } from '$lib/engine/ahp';
     
     // 2. NEW: Import the WSM engine and our strictly typed interface
     import { normalizeScores, calculateWsmScores, type RankedOption } from '$lib/engine/wsm';
+
+    // NEW: Import the decoupled Options Builder
+    import OptionsBuilder from '$lib/components/OptionsBuilder.svelte';
+
+    // NEW: Import the insight engine
+    import RecommendationInsight from '$lib/components/RecommendationInsight.svelte'
 
     // Define an array to hold our unique pairwise combinations
     let pairs: Array<{idA: string, idB: string, nameA: string, nameB: string}> = [];
@@ -60,6 +64,9 @@
     // 3. NEW: Variable to hold the final sorted leaderboard
     let finalRankings: RankedOption[] = [];
 
+    // 1. NEW: A variable to hold the raw normalized grid data for the insight engine
+    let currentNormalizedData: Record<string, Record<string, number>> = {};
+
     // The Reactive Math Pipeline
     $: {
         // Extract an ordered list of IDs so the matrix knows which row is which
@@ -82,15 +89,15 @@
         // Only run the math if we actually have options, criteria, and calculated weights
         if ($optionsStore.length > 0 && $criteriaStore.length > 0 && weights.length > 0) {
             
-            // Step A: Clean and normalize the dangerous raw grid data to a 0-1 scale
-            const normalizedData = normalizeScores($optionsStore, $criteriaStore);
+            // 2. UPDATED: Save to our new component-level variable instead of a local 'const'
+            currentNormalizedData = normalizeScores($optionsStore, $criteriaStore);
             
             // Step B: Multiply by AHP weights and sort from best to worst
-            finalRankings = calculateWsmScores($optionsStore, $criteriaStore, normalizedData, weights);
-            
+            finalRankings = calculateWsmScores($optionsStore, $criteriaStore, currentNormalizedData, weights);            
         } else {
             // Failsafe: Clear the board if data is deleted
             finalRankings = []; 
+            currentNormalizedData = {}; // Clear failsafe
         }
     }
 
@@ -222,6 +229,12 @@
     {#if finalRankings.length > 0}
         <section class="leaderboard-section">
             <h2>Final Recommendation</h2>
+        
+            <RecommendationInsight 
+                rankings={finalRankings} 
+                normalizedData={currentNormalizedData} 
+                weights={weights} 
+            />
             
             {#if missingDataCount > 0 && $optionsStore.length > 0 && $criteriaStore.length > 0}
                 <div class="warning-banner">

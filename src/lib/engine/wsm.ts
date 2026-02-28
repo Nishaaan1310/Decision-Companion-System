@@ -98,3 +98,91 @@ export function calculateWsmScores(
     // Step 2: Sort the final array descending (highest score is index 0)
     return results.sort((a, b) => b.score - a.score);
 }
+
+// Define the structure for our score breakdown
+export interface ScoreContribution {
+    criterionId: string;
+    weightedScore: number;
+}
+
+/**
+ * Analyzes a specific option to determine exactly how much each criterion 
+ * contributed to its final WSM score.
+ */
+export function calculateItemizedContributions(
+    optionId: string,
+    criteriaIds: string[],
+    normalizedData: Record<string, Record<string, number>>,
+    weights: number[]
+): ScoreContribution[] {
+    const contributions: ScoreContribution[] = [];
+
+    // Safety check: ensure the option exists in our normalized data
+    if (!normalizedData[optionId]) {
+        return contributions;
+    }
+
+    // Loop through every criterion to calculate its exact slice of the pie
+    criteriaIds.forEach((critId, index) => {
+        const rawNormalized = normalizedData[optionId][critId] || 0;
+        const weight = weights[index] || 0;
+        
+        contributions.push({
+            criterionId: critId,
+            weightedScore: rawNormalized * weight
+        });
+    });
+
+    // Sort from highest contribution to lowest, so index 0 is always the "MVP" criterion
+    return contributions.sort((a, b) => b.weightedScore - a.weightedScore);
+}
+
+// Define the structure for the "Why Option A beat Option B" insight
+export interface ComparisonInsight {
+    decidingCriterionId: string;
+    scoreDelta: number; // How much MORE the winner scored in this specific criterion
+}
+
+/**
+ * Compares the #1 option against the #2 option to find the specific 
+ * criterion where the winner outperformed the runner-up the most.
+ */
+export function findDecidingFactor(
+    winnerId: string,
+    runnerUpId: string,
+    criteriaIds: string[],
+    normalizedData: Record<string, Record<string, number>>,
+    weights: number[]
+): ComparisonInsight | null {
+    // 1. Get the forensic breakdown for both options using our previous function
+    const winnerMath = calculateItemizedContributions(winnerId, criteriaIds, normalizedData, weights);
+    const runnerUpMath = calculateItemizedContributions(runnerUpId, criteriaIds, normalizedData, weights);
+
+    if (winnerMath.length === 0 || runnerUpMath.length === 0) return null;
+
+    let biggestAdvantage = -Infinity;
+    let winningCriterion = '';
+
+    // 2. Loop through every criterion to find the biggest gap
+    criteriaIds.forEach(critId => {
+        const winnerScore = winnerMath.find(c => c.criterionId === critId)?.weightedScore || 0;
+        const runnerUpScore = runnerUpMath.find(c => c.criterionId === critId)?.weightedScore || 0;
+        
+        // Calculate the advantage (Delta)
+        const advantage = winnerScore - runnerUpScore;
+
+        // If this advantage is the biggest one we've seen so far, save it
+        if (advantage > biggestAdvantage) {
+            biggestAdvantage = advantage;
+            winningCriterion = critId;
+        }
+    });
+
+    // 3. Failsafe: If for some reason the math is perfectly tied across the board
+    if (!winningCriterion || biggestAdvantage <= 0) return null;
+
+    return {
+        decidingCriterionId: winningCriterion,
+        scoreDelta: biggestAdvantage
+    };
+}

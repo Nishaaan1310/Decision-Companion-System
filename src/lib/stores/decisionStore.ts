@@ -133,6 +133,59 @@ export function removeCriterion(targetId: string) {
     });
 }
 
+// Action: Update an existing criterion's name AND polarity
+export function updateCriterion(id: string, newName: string, newIsCost: boolean) {
+    criteriaStore.update(criteria => 
+        criteria.map(c => {
+            if (c.id === id) {
+                // NEW: We now overwrite both 'name' and 'isCost'
+                return { ...c, name: newName, isCost: newIsCost };
+            }
+            return c;
+        })
+    );
+}
+
+// --- OPTION CRUD ACTIONS ---
+
+// Action: Add a new blank option
+export function addOption() {
+    optionsStore.update(options => {
+        const newId = crypto.randomUUID(); // Generate a unique ID
+        return [...options, { id: newId, name: `Option ${options.length + 1}`, scores: {} }];
+    });
+}
+
+// Action: Remove a specific option by its ID
+export function removeOption(id: string) {
+    optionsStore.update(options => options.filter(opt => opt.id !== id));
+}
+
+// Action: Update a specific raw score for an option
+export function updateOptionScore(optionId: string, criterionId: string, newValue: number | undefined) {
+    optionsStore.update(options => {
+        // Map over the array and only modify the specific option that matches the ID
+        return options.map(opt => {
+            if (opt.id === optionId) {
+                // Create a shallow copy of the existing dictionary
+                const newScores = { ...opt.scores };
+                
+                // Add or remove the dictionary key
+                if (newValue === undefined) {
+                    delete newScores[criterionId];
+                } else {
+                    newScores[criterionId] = newValue;
+                }
+                
+                // Return the newly constructed option object
+                return { ...opt, scores: newScores };
+            }
+            // If it's not the target option, return it completely untouched
+            return opt;
+        });
+    });
+}
+
 // Action: Factory Reset (Clear all user data)
 export function resetAllData() {
     criteriaStore.set([]);

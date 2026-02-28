@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { criteriaStore, comparisonsStore, optionsStore } from '$lib/stores/decisionStore';
+    import { criteriaStore, comparisonsStore, optionsStore, resetAllData, addOption, removeOption, updateOptionScore } from '$lib/stores/decisionStore';
     import AhpSlider from '$lib/components/AhpSlider.svelte';
     import DataCell from '$lib/components/DataCell.svelte';
     // NEW: Import our dynamic builder component
@@ -9,8 +9,6 @@
     
     // 2. NEW: Import the WSM engine and our strictly typed interface
     import { normalizeScores, calculateWsmScores, type RankedOption } from '$lib/engine/wsm';
-
-    import { resetAllData } from '$lib/stores/decisionStore';
 
     // Define an array to hold our unique pairwise combinations
     let pairs: Array<{idA: string, idB: string, nameA: string, nameB: string}> = [];
@@ -46,40 +44,6 @@
         $comparisonsStore[`${idA}_${idB}`] = finalMathValue;
     }
 
-    // Function to generate a unique ID for new options
-    function generateId() {
-        return Math.random().toString(36).substring(2, 9);
-    }
-
-    // Function to inject a new blank row into the state
-    function addOption() {
-        const newOption = {
-            id: `opt_${generateId()}`,
-            name: `Option ${$optionsStore.length + 1}`,
-            scores: {} // Empty dictionary ready to hold the raw numbers
-        };
-        
-        // Svelte Reactivity: We must reassign the store to trigger an update
-        $optionsStore = [...$optionsStore, newOption];
-    }
-
-    function updateOptionScore(optionId: string, criterionId: string, newValue: number | undefined) {
-        
-        // Find the index of the specific option row we are editing
-        const optionIndex = $optionsStore.findIndex(opt => opt.id === optionId);
-        
-        if (optionIndex !== -1) {
-            // Update only that specific cell's dictionary entry
-            if (newValue === undefined) {
-                 delete $optionsStore[optionIndex].scores[criterionId];
-            } else {
-                 $optionsStore[optionIndex].scores[criterionId] = newValue;
-            }
-            
-            // Re-assign the entire array to trigger Svelte's instant reactivity
-            $optionsStore = [...$optionsStore];
-        }
-    }
 
     // ==========================================
     // NEW LOGIC ADDITIONS BELOW
@@ -212,8 +176,11 @@
                 <tbody>
                     {#each $optionsStore as option (option.id)}
                         <tr>
-                            <td>
+                            <td class="option-name-cell">
                                 <input type="text" bind:value={option.name} class="name-input" />
+                                <button on:click={() => removeOption(option.id)} class="delete-icon" aria-label="Delete Option">
+                                    ✕
+                                </button>
                             </td>
                             {#each $criteriaStore as criterion}
                                 <td>
@@ -221,7 +188,7 @@
                                         value={option.scores[criterion.id]} 
                                         criterionName={criterion.name} 
                                         optionName={option.name}
-                                        on:update={(e) => updateOptionScore(option.id, criterion.id, e.detail.value)} 
+                                        onUpdate={(detail) => updateOptionScore(option.id, criterion.id, detail.value)} 
                                     />
                                 </td>
                             {/each}
@@ -534,6 +501,23 @@
 
     .danger-btn:hover {
         background-color: #c82333;
+    }
+
+    .option-name-cell {
+        display: flex;
+        align-items: center;
+    }
+
+    .delete-icon {
+        background: none;
+        border: none;
+        color: #dc3545;
+        cursor: pointer;
+        font-weight: bold;
+        margin-left: 0.5rem;
+    }
+    .delete-icon:hover {
+        color: #a71d2a;
     }
     
 </style>

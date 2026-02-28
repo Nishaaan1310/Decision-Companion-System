@@ -1,10 +1,14 @@
 <script lang="ts">
     // 1. Import the store to read the current list, and the actions to modify it
     import { criteriaStore } from '$lib/stores/decisionStore';
-    import { addCriterion, removeCriterion } from '$lib/stores/decisionStore';
+    import { addCriterion, removeCriterion, updateCriterion } from '$lib/stores/decisionStore';
 
     // 2. Local state to track what the user is currently typing
     let newCriterionName = '';
+    let editIsCost: boolean = false;
+    // --- NEW: Local State for Inline Editing ---
+    let editingId: string | null = null;
+    let editName: string = '';
     
     // 3. Local state to track the polarity toggle (defaults to Benefit/false)
     let isCost = false;
@@ -20,6 +24,26 @@
             isCost = false;
         }
     }
+
+    // --- NEW: Edit Handlers ---
+    function startEdit(criterion: { id: string, name: string, isCost: boolean }) {
+        editingId = criterion.id; // Lock the UI into edit mode for this specific row
+        editName = criterion.name; // Pre-fill the input box with the current name
+        editIsCost = criterion.isCost; // Grab the existing Cost/Benefit status
+    }
+
+    function saveEdit() {
+        if (editName.trim() && editingId) {
+            // Pass the editIsCost variable into the global function
+            updateCriterion(editingId, editName.trim(), editIsCost);
+        }
+        editingId = null; // Exit edit mode
+    }
+
+    function cancelEdit() {
+        editingId = null; // Abort and hide the input box
+    }
+    
 </script>
 
 <div class="builder-container">
@@ -59,15 +83,52 @@
         <ul class="criteria-list">
             {#each $criteriaStore as criterion (criterion.id)}
                 <li class="criterion-item">
-                    <div class="item-info">
-                        <span class="item-name">{criterion.name}</span>
-                        <span class="item-badge {criterion.isCost ? 'badge-cost' : 'badge-benefit'}">
-                            {criterion.isCost ? 'Cost' : 'Benefit'}
-                        </span>
-                    </div>
-                    <button class="remove-btn" on:click={() => removeCriterion(criterion.id)}>
-                        Remove
-                    </button>
+                    
+                    {#if editingId === criterion.id}
+                        
+                        <div class="edit-mode">
+                            <input 
+                                type="text" 
+                                bind:value={editName} 
+                                class="edit-input"
+                                on:keydown={(e) => e.key === 'Enter' && saveEdit()}
+                            />
+                            <button 
+                                class="toggle-btn {editIsCost ? 'cost' : 'benefit'}" 
+                                on:click={() => editIsCost = !editIsCost}
+                            >
+                                {editIsCost ? 'Cost' : 'Benefit'}
+                            </button>
+                            <div class="actions">
+                                <button class="save-btn" on:click={saveEdit}>Save</button>
+                                <button class="cancel-btn" on:click={cancelEdit}>Cancel</button>
+                            </div>
+                        </div>
+
+                    {:else}
+                        
+                        <div class="read-mode">
+                            <div class="item-info">
+                                <span class="criterion-name">{criterion.name}</span>
+                                
+                                <span class="item-badge {criterion.isCost ? 'badge-cost' : 'badge-benefit'}">
+                                    {criterion.isCost ? 'Cost' : 'Benefit'}
+                                </span>
+                            </div>
+                            
+                            <div class="actions">
+                                <button class="edit-btn" on:click={() => startEdit(criterion)}>
+                                    Edit
+                                </button>
+                                
+                                <button class="remove-btn" on:click={() => removeCriterion(criterion.id)}>
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+
+                    {/if}
+                    
                 </li>
             {/each}
         </ul>
@@ -166,10 +227,6 @@
         align-items: center;
         gap: 1rem;
     }
-    .item-name {
-        font-weight: 500;
-        color: #374151;
-    }
     .item-badge {
         font-size: 0.75rem;
         padding: 0.125rem 0.5rem;
@@ -198,5 +255,70 @@
     }
     .remove-btn:hover {
         background: #fef2f2;
+    }
+
+    /* --- NEW EDIT MODE STYLES --- */
+    .read-mode, .edit-mode {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+    }
+    .edit-mode {
+        gap: 1rem;
+    }
+    .edit-input {
+        flex: 1;
+        padding: 0.5rem;
+        border: 2px solid #3b82f6;
+        border-radius: 4px;
+        font-family: inherit;
+        font-size: 1rem;
+        outline: none;
+    }
+    .actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+    .edit-btn {
+        background: transparent;
+        border: 1px solid #d1d5db;
+        color: #4b5563;
+        font-size: 0.875rem;
+        cursor: pointer;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        transition: all 0.2s;
+    }
+    .edit-btn:hover {
+        background: #f3f4f6;
+        border-color: #9ca3af;
+    }
+    .save-btn {
+        background: #10b981;
+        border: none;
+        color: white;
+        font-size: 0.875rem;
+        font-weight: 600;
+        cursor: pointer;
+        padding: 0.35rem 0.75rem;
+        border-radius: 4px;
+        transition: background 0.2s;
+    }
+    .save-btn:hover {
+        background: #059669;
+    }
+    .cancel-btn {
+        background: #f3f4f6;
+        border: 1px solid #d1d5db;
+        color: #4b5563;
+        font-size: 0.875rem;
+        cursor: pointer;
+        padding: 0.35rem 0.75rem;
+        border-radius: 4px;
+        transition: background 0.2s;
+    }
+    .cancel-btn:hover {
+        background: #e5e7eb;
     }
 </style>

@@ -1,13 +1,10 @@
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
-
     // 1. Props passed from the parent grid
     export let value: number | undefined = undefined; 
     export let criterionName: string; // Used for clean accessibility labeling
     export let optionName: string;    // Used for clean accessibility labeling
+    export let onUpdate: ((detail: { value: number | undefined }) => void) = () => {};
 
-    const dispatch = createEventDispatcher();
-    
     // Generate a unique ID for this specific input field
     const inputId = `cell-${Math.random().toString(36).substring(2, 9)}`;
 
@@ -16,8 +13,8 @@
         const target = event.target as HTMLInputElement;
         const parsedValue = parseFloat(target.value);
         
-        // Broadcast the new number up to the main page
-        dispatch('update', {
+        // Broadcast the new number up to the main page using the callback prop
+        onUpdate({
             value: isNaN(parsedValue) ? undefined : parsedValue
         });
     }

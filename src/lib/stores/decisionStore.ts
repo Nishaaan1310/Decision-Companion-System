@@ -57,6 +57,8 @@ function createPersistentStore<T>(key: string, initialValue: T) {
             }
         } catch (error) {
             console.error(`Error reading ${key} from localStorage:`, error);
+            // NEW: Clean up the corrupted data so it doesn't linger
+            localStorage.removeItem(key);
         }
     }
 
@@ -74,7 +76,26 @@ function createPersistentStore<T>(key: string, initialValue: T) {
         });
     }
 
-    // 5. Return the exact same API as a standard Svelte store so the rest of the app doesn't break
+    // 5. The Sync Phase: Listen for changes made by other tabs/windows
+    if (isBrowser) {
+        window.addEventListener('storage', (event) => {
+            // Only react if the exact localStorage key we care about was changed
+            if (event.key === key) {
+                try {
+                    // If the other tab deleted the data, fall back to initialValue
+                    // Otherwise, parse the brand new JSON string sent by the browser
+                    const syncedValue = event.newValue ? JSON.parse(event.newValue) : initialValue;
+                    
+                    // Force this tab's Svelte store to immediately adopt the new data
+                    store.set(syncedValue);
+                } catch (error) {
+                    console.error(`Error syncing ${key} from another tab:`, error);
+                }
+            }
+        });
+    }
+
+    // 6. Return the exact same API as a standard Svelte store so the rest of the app doesn't break
     return {
         subscribe: store.subscribe,
         set: store.set,

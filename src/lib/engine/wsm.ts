@@ -10,35 +10,44 @@ import type { Option, Criterion } from '../stores/decisionStore';
 export function normalizeScores(options: Option[], criteria: Criterion[]): Record<string, Record<string, number>> {
     const normalizedData: Record<string, Record<string, number>> = {};
 
-    // Initialize the empty result object for each option
+    // Initialize the empty data structure
     options.forEach(opt => {
         normalizedData[opt.id] = {};
     });
 
-    // Process the math one criterion at a time
     criteria.forEach(crit => {
-        // Step 1: Gather all raw numbers for this specific column
-        const rawScores = options.map(opt => opt.scores[crit.id] || 0);
-        const maxScore = Math.max(...rawScores);
-        const minScore = Math.min(...rawScores);
+        // Step 1: Extract ONLY the valid numbers typed by the user
+        const validScores = options
+            .map(opt => opt.scores[crit.id])
+            .filter(val => val !== undefined && val !== null) as number[];
 
-        // Step 2: Apply Min-Max normalization for every option
+        // Step 2: Safely calculate min and max from valid data only
+        let maxScore = 0;
+        let minScore = 0;
+        if (validScores.length > 0) {
+            maxScore = Math.max(...validScores);
+            minScore = Math.min(...validScores);
+        }
+
+        // Step 3: Apply normalization rules
         options.forEach(opt => {
-            const rawValue = opt.scores[crit.id] || 0;
+            const rawValue = opt.scores[crit.id];
             let normalizedValue = 0;
 
-            if (maxScore === minScore) {
-                // Failsafe: If every option costs $100, they all tie perfectly (score of 1)
+            if (rawValue === undefined || rawValue === null) {
+                // THE FAILSAFE: Missing data gets an automatic 0 (worst possible outcome)
+                normalizedValue = 0;
+            } else if (maxScore === minScore) {
+                // Failsafe: If all valid entries are identical, they all tie perfectly
                 normalizedValue = 1;
             } else if (crit.isCost) {
-                // Cost metric (Lower is better): Invert the standard formula
+                // Cost metric (Lower is better)
                 normalizedValue = (maxScore - rawValue) / (maxScore - minScore);
             } else {
-                // Benefit metric (Higher is better): Standard formula
+                // Benefit metric (Higher is better)
                 normalizedValue = (rawValue - minScore) / (maxScore - minScore);
             }
 
-            // Save the clean, normalized 0-1 number
             normalizedData[opt.id][crit.id] = normalizedValue;
         });
     });

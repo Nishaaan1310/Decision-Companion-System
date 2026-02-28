@@ -9,21 +9,39 @@
     // --- NEW: Local State for Inline Editing ---
     let editingId: string | null = null;
     let editName: string = '';
+
+    // NEW: Local state for displaying validation errors
+    let errorMessage = '';
+
+    // NEW: The core validation engine (case-insensitive)
+    function isDuplicate(nameToCheck: string, ignoreId: string | null = null): boolean {
+        const normalized = nameToCheck.trim().toLowerCase();
+        return $criteriaStore.some(
+            c => c.name.toLowerCase() === normalized && c.id !== ignoreId
+        );
+    }
     
     // 3. Local state to track the polarity toggle (defaults to Benefit/false)
     let isCost = false;
+    
 
     // 4. The function triggered when the user clicks the "Add" button
     function handleAdd() {
-        // Prevent empty or whitespace-only criteria from entering the math engine
-        if (newCriterionName.trim() !== '') {
-            addCriterion(newCriterionName, isCost);
+            errorMessage = ''; // Clear previous errors
+            const trimmed = newCriterionName.trim();
             
-            // Clean up: Reset the input fields so the user can easily type the next one
-            newCriterionName = '';
-            isCost = false;
+            if (trimmed !== '') {
+                // Check the gate
+                if (isDuplicate(trimmed)) {
+                    errorMessage = `A criterion named "${trimmed}" already exists.`;
+                    return; // Stop execution, do not add to store
+                }
+
+                addCriterion(trimmed, isCost);
+                newCriterionName = '';
+                isCost = false;
+            }
         }
-    }
 
     // --- NEW: Edit Handlers ---
     function startEdit(criterion: { id: string, name: string, isCost: boolean }) {
@@ -33,15 +51,24 @@
     }
 
     function saveEdit() {
-        if (editName.trim() && editingId) {
-            // Pass the editIsCost variable into the global function
-            updateCriterion(editingId, editName.trim(), editIsCost);
+        errorMessage = ''; // Clear previous errors
+        const trimmed = editName.trim();
+
+        if (trimmed && editingId) {
+            // Check the gate (ignoring its own ID so saving without changes works)
+            if (isDuplicate(trimmed, editingId)) {
+                errorMessage = `Name "${trimmed}" is already taken.`;
+                return; // Keep them in edit mode until they fix it
+            }
+
+            updateCriterion(editingId, trimmed, editIsCost);
         }
-        editingId = null; // Exit edit mode
+        editingId = null; 
     }
 
     function cancelEdit() {
-        editingId = null; // Abort and hide the input box
+        errorMessage = ''; // Clear any errors generated while editing
+        editingId = null; 
     }
     
 </script>
@@ -58,12 +85,14 @@
                 placeholder="e.g., Cost, Performance, Risk..." 
                 bind:value={newCriterionName}
                 class="name-input"
+                disabled={$criteriaStore.length >= 10}
+                on:keydown={(e) => e.key === 'Enter' && newCriterionName.trim() !== '' && $criteriaStore.length < 10 && handleAdd()}
             />
         </div>
 
         <div class="input-wrapper">
             <label for="criterion-type" class="sr-only">Criterion Type</label>
-            <select id="criterion-type" bind:value={isCost} class="type-select">
+            <select id="criterion-type" bind:value={isCost} class="type-select" disabled={$criteriaStore.length >= 10}>
                 <option value={false}>Benefit (Higher is Better)</option>
                 <option value={true}>Cost (Lower is Better)</option>
             </select>
@@ -72,12 +101,25 @@
         <button 
             class="add-btn" 
             on:click={handleAdd} 
-            disabled={newCriterionName.trim() === ''}
-            title={newCriterionName.trim() === '' ? 'Enter a name to unlock' : 'Add Criterion'}
+            disabled={newCriterionName.trim() === '' || $criteriaStore.length >= 10}
+            title={$criteriaStore.length >= 10 ? 'Maximum criteria reached' : (newCriterionName.trim() === '' ? 'Enter a name to unlock' : 'Add Criterion')}
         >
-            {newCriterionName.trim() === '' ? '🔒 Locked' : '+ Add'}
+            {$criteriaStore.length >= 10 ? 'MAXIMUM REACHED' : (newCriterionName.trim() === '' ? '🔒 Locked' : '+ Add')}
         </button>
     </div>
+    
+    {#if $criteriaStore.length >= 10}
+        <div class="limit-warning">
+            ⚠️ Maximum limit reached (10). AHP mathematics are most accurate with 9 or fewer criteria.
+        </div>
+    {/if}
+
+    {#if errorMessage}
+        <p class="error-message">
+            🚨 {errorMessage}
+        </p>
+    {/if}
+    
 
     {#if $criteriaStore.length > 0}
         <ul class="criteria-list">
@@ -320,5 +362,24 @@
     }
     .cancel-btn:hover {
         background: #e5e7eb;
+    }
+
+    .limit-warning {
+        color: #b45309; /* Deep orange */
+        background-color: #fffbeb;
+        padding: 0.75rem;
+        border-radius: 6px;
+        margin-bottom: 1rem;
+        font-size: 0.875rem;
+        border: 1px solid #fde68a;
+        text-align: center;
+        font-weight: 500;
+    }
+
+    .error-message {
+    color: #dc3545; /* Standard error red */
+    font-size: 0.85rem;
+    margin-top: 0.5rem;
+    font-weight: bold;
     }
 </style>

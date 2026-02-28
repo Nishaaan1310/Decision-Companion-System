@@ -18,6 +18,10 @@
             value: isNaN(parsedValue) ? undefined : parsedValue
         });
     }
+
+    // NEW: Reactive boolean that checks if the cell is currently empty
+    // Includes a safeguard for empty string states based on your earlier logic
+    $: isEmpty = value === undefined || value === null || (value !== null && value !== undefined && value.toString().trim() === '');
 </script>
 
 <div class="cell-wrapper">
@@ -30,6 +34,7 @@
         value={value ?? ''} 
         on:input={handleInput}
         class="data-input"
+        class:empty-cell={isEmpty}
     />
 </div>
 
@@ -66,5 +71,11 @@
         outline: none;
         border-color: #3b82f6;
         box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    /* NEW: The warning style for empty cells */
+    .empty-cell {
+        border: 2px solid #ffc107; /* Warning Yellow */
+        background-color: #fffdf5;
     }
 </style>

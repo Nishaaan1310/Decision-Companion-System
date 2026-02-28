@@ -92,6 +92,26 @@
     }
 
 
+    // NEW: Reactive counter for missing data
+    let missingDataCount = 0;
+
+    $: {
+        let actualFilledCount = 0;
+        
+        // Loop through every option and every criterion to check for existing numbers
+        $optionsStore.forEach(opt => {
+            $criteriaStore.forEach(crit => {
+                if (opt.scores[crit.id] !== undefined && opt.scores[crit.id] !== null) {
+                    actualFilledCount++;
+                }
+            });
+        });
+        
+        // Total expected cells minus the ones actually filled
+        missingDataCount = ($optionsStore.length * $criteriaStore.length) - actualFilledCount;
+    }
+
+
     // safety wrapper function
     function handleFactoryReset() {
         const isConfirmed = confirm("Are you sure you want to completely clear all criteria, comparisons, and options? This action cannot be undone.");
@@ -202,6 +222,14 @@
     {#if finalRankings.length > 0}
         <section class="leaderboard-section">
             <h2>Final Recommendation</h2>
+            
+            {#if missingDataCount > 0 && $optionsStore.length > 0 && $criteriaStore.length > 0}
+                <div class="warning-banner">
+                    <strong>⚠️ Missing Data:</strong> You have {missingDataCount} empty cell(s). 
+                    Missing values are automatically scored as the worst possible outcome (0 points).
+                </div>
+            {/if}
+
             <div class="rankings-list">
                 {#each finalRankings as result, index}
                     <div class="ranking-card {index === 0 ? 'winner' : ''}">
@@ -224,6 +252,7 @@
         <pre>{JSON.stringify($comparisonsStore, null, 2)}</pre>
     </section>
 
+    
 
 </main>
 
@@ -520,4 +549,13 @@
         color: #a71d2a;
     }
     
+    .warning-banner {
+        background-color: #fff3cd;
+        color: #856404;
+        padding: 1rem;
+        border: 1px solid #ffeeba;
+        border-radius: 4px;
+        margin-bottom: 1.5rem;
+        font-size: 0.95rem;
+    }
 </style>

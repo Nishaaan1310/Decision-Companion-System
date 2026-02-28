@@ -169,17 +169,30 @@ export function updateCriterion(id: string, newName: string, newIsCost: boolean)
 
 // --- OPTION CRUD ACTIONS ---
 
-// Action: Add a new blank option
-export function addOption() {
+// Action: Add a custom option
+export function addOption(name: string) {
     optionsStore.update(options => {
         const newId = crypto.randomUUID(); // Generate a unique ID
-        return [...options, { id: newId, name: `Option ${options.length + 1}`, scores: {} }];
+        return [...options, { id: newId, name: name, scores: {} }];
     });
 }
 
 // Action: Remove a specific option by its ID
 export function removeOption(id: string) {
     optionsStore.update(options => options.filter(opt => opt.id !== id));
+}
+
+export function updateOptionName(id: string, newName: string) {
+    optionsStore.update(options => {
+        return options.map(opt => {
+            // Find the exact option by ID
+            if (opt.id === id) {
+                // Return a new object with the updated name, keeping the existing scores intact
+                return { ...opt, name: newName };
+            }
+            return opt;
+        });
+    });
 }
 
 // Action: Update a specific raw score for an option

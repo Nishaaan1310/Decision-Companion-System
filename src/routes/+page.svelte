@@ -1,9 +1,12 @@
 <script lang="ts">
-    import { criteriaStore, comparisonsStore, optionsStore, resetAllData, addOption, removeOption, updateOptionScore } from '$lib/stores/decisionStore';
+    import { criteriaStore, comparisonsStore, optionsStore, resetAllData, updateOptionScore } from '$lib/stores/decisionStore';
     import AhpSlider from '$lib/components/AhpSlider.svelte';
     import DataCell from '$lib/components/DataCell.svelte';
     // NEW: Import our dynamic builder component
     import CriteriaBuilder from '$lib/components/CriteriaBuilder.svelte';
+
+    // NEW: Import the decoupled Options Builder
+    import OptionsBuilder from '$lib/components/OptionsBuilder.svelte';
     // 1. NEW: Import our decoupled math engine
     import { buildAhpMatrix, calculateWeights, calculateConsistencyRatio } from '$lib/engine/ahp';
     
@@ -172,11 +175,12 @@
 
 
 
+    <OptionsBuilder />
+
     <section class="data-grid-section">
         <div class="grid-header">
             <h2>Options Data Entry</h2>
-            <button class="add-btn" on:click={addOption}>+ Add Option</button>
-        </div>
+            </div>
 
         <div class="table-container">
             <table class="data-table">
@@ -197,10 +201,7 @@
                     {#each $optionsStore as option (option.id)}
                         <tr>
                             <td class="option-name-cell">
-                                <input type="text" bind:value={option.name} class="name-input" />
-                                <button on:click={() => removeOption(option.id)} class="delete-icon" aria-label="Delete Option">
-                                    ✕
-                                </button>
+                                <strong>{option.name}</strong>
                             </td>
                             {#each $criteriaStore as criterion}
                                 <td>
@@ -218,7 +219,6 @@
             </table>
         </div>
     </section>
-
     {#if finalRankings.length > 0}
         <section class="leaderboard-section">
             <h2>Final Recommendation</h2>
@@ -379,19 +379,6 @@
         margin: 0;
         color: #111827;
     }
-    .add-btn {
-        background-color: #10b981;
-        color: white;
-        border: none;
-        padding: 0.5rem 1rem;
-        border-radius: 4px;
-        cursor: pointer;
-        font-weight: 600;
-        transition: background-color 0.2s;
-    }
-    .add-btn:hover {
-        background-color: #059669;
-    }
     .table-container {
         overflow-x: auto; /* Allows horizontal scrolling if there are many columns */
     }
@@ -415,22 +402,6 @@
         color: #9ca3af;
         font-weight: normal;
         margin-left: 0.25rem;
-    }
-    /* Keeping the input clean so the table doesn't look cluttered */
-    .name-input {
-        width: 100%;
-        padding: 0.5rem;
-        border: 1px solid transparent; 
-        border-radius: 4px;
-        font-weight: 600;
-        color: #111827;
-        background: transparent;
-        transition: all 0.2s;
-    }
-    .name-input:hover, .name-input:focus {
-        border-color: #d1d5db;
-        background-color: #ffffff;
-        outline: none;
     }
 
     .leaderboard-section {
@@ -535,18 +506,6 @@
     .option-name-cell {
         display: flex;
         align-items: center;
-    }
-
-    .delete-icon {
-        background: none;
-        border: none;
-        color: #dc3545;
-        cursor: pointer;
-        font-weight: bold;
-        margin-left: 0.5rem;
-    }
-    .delete-icon:hover {
-        color: #a71d2a;
     }
     
     .warning-banner {

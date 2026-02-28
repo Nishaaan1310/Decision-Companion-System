@@ -21,11 +21,66 @@ export interface Option {
     scores: Record<string, number>; 
 }
 
-// --- State Stores ---
+// --- GLOBAL MEMORY STORES ---
 
-export const criteriaStore = writable<Criterion[]>([]);
-export const comparisonsStore = writable<ComparisonMap>({});
-export const optionsStore = writable<Option[]>([]);
+// 1. Store for the criteria framework
+export const criteriaStore = createPersistentStore<Criterion[]>(
+    'decision_criteria', 
+    []
+);
+
+// 2. Store for the AHP pairwise slider values
+export const comparisonsStore = createPersistentStore<Record<string, number>>(
+    'decision_comparisons', 
+    {}
+);
+
+// 3. Store for the raw WSM data matrix
+export const optionsStore = createPersistentStore<Option[]>(
+    'decision_options', 
+    []
+);
+
+// --- UTILITIES: LocalStorage Factory ---
+
+function createPersistentStore<T>(key: string, initialValue: T) {
+    // 1. Handle SSR Gotcha: Check if we are actually in the browser
+    const isBrowser = typeof window !== 'undefined';
+    
+    // 2. The Load Phase: Try to get existing data from the browser's memory
+    let storedValue = initialValue;
+    if (isBrowser) {
+        try {
+            const item = localStorage.getItem(key);
+            if (item) {
+                storedValue = JSON.parse(item);
+            }
+        } catch (error) {
+            console.error(`Error reading ${key} from localStorage:`, error);
+        }
+    }
+
+    // 3. Create a standard Svelte store with whatever data we found (or the empty default)
+    const store = writable<T>(storedValue);
+
+    // 4. The Save Phase: Listen to every single change and silently write to disk
+    if (isBrowser) {
+        store.subscribe((value) => {
+            try {
+                localStorage.setItem(key, JSON.stringify(value));
+            } catch (error) {
+                console.error(`Error saving ${key} to localStorage:`, error);
+            }
+        });
+    }
+
+    // 5. Return the exact same API as a standard Svelte store so the rest of the app doesn't break
+    return {
+        subscribe: store.subscribe,
+        set: store.set,
+        update: store.update
+    };
+}
 
 // --- ACTIONS: Phase 2 Dynamic Framework Logic ---
 
@@ -76,4 +131,11 @@ export function removeCriterion(targetId: string) {
             return { ...option, scores: cleanedScores };
         });
     });
+}
+
+// Action: Factory Reset (Clear all user data)
+export function resetAllData() {
+    criteriaStore.set([]);
+    comparisonsStore.set({});
+    optionsStore.set([]);
 }

@@ -10,6 +10,8 @@
     // 2. NEW: Import the WSM engine and our strictly typed interface
     import { normalizeScores, calculateWsmScores, type RankedOption } from '$lib/engine/wsm';
 
+    import { resetAllData } from '$lib/stores/decisionStore';
+
     // Define an array to hold our unique pairwise combinations
     let pairs: Array<{idA: string, idB: string, nameA: string, nameB: string}> = [];
 
@@ -125,13 +127,26 @@
         }
     }
 
+
+    // safety wrapper function
+    function handleFactoryReset() {
+        const isConfirmed = confirm("Are you sure you want to completely clear all criteria, comparisons, and options? This action cannot be undone.");
+        
+        if (isConfirmed) {
+            resetAllData();
+        }
+    }
+
 </script>
 
 
 <main class="app-container">
-    <header>
+    <header class="top-bar">
         <h1>Decision Companion</h1>
         <p>Define your priorities by comparing criteria below.</p>
+        <button on:click={handleFactoryReset} class="danger-btn">
+            Start Over
+        </button>
     </header>
 
     <CriteriaBuilder />
@@ -241,6 +256,8 @@
         <h3>Live Memory State</h3>
         <pre>{JSON.stringify($comparisonsStore, null, 2)}</pre>
     </section>
+
+
 </main>
 
 <style>
@@ -488,4 +505,35 @@
         font-weight: normal;
         color: #6b7280;
     }
+
+    .top-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 2rem;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #e9ecef;
+        margin-bottom: 2rem;
+    }
+
+    .top-bar h1 {
+        margin: 0;
+        font-size: 1.5rem;
+        color: #333;
+    }
+
+    .danger-btn {
+        background-color: #dc3545;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+    }
+
+    .danger-btn:hover {
+        background-color: #c82333;
+    }
+    
 </style>

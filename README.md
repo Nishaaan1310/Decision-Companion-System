@@ -3,9 +3,15 @@ To build a fully client-side application that takes criteria, options, pairwise 
 
 Assumptions Made:
 
-1. The user knows and provides the specific options for the decision.
-2. The user provides a raw data value for each option against each criterion.
+1. The user knows and provides the specific options for the decision..
+2. The user provides a raw data value (or an estimated range) for each option against each criterion.
 3. The user does not provide absolute weights; instead, they provide relative preferences through pairwise comparisons of the criteria.
+4. The system operates under the assumption that all inputs within a single criterion column share a consistent, user-standardized base unit.
+5. Criteria Directionality: The system assumes the user correctly identifies whether each criterion is a "Cost" (where lower numbers are better, e.g., Price) or a "Benefit" (where higher numbers are better, e.g., Speed). If the user mislabels this, the normalization engine will perfectly calculate the wrong recommendation.
+6. Missing Data implies the Worst-Case Scenario: The system assumes that an empty data cell represents the worst possible outcome for that specific criterion, automatically assigning it a normalized score of 0.0 rather than a neutral or average score.
+7. Uniform Distribution for Ranges: When a user inputs a range (e.g., 10-20), the engine mathematically assumes a uniform probability—meaning it assumes the true value will fall exactly in the middle (15).
+8. Independence of Criteria: (This is a fundamental assumption of WSM and AHP math). The system assumes that all criteria are independent of one another. If a user creates two criteria that mean the same thing (e.g., "Price" and "Affordability"), the engine will mathematically double-count that factor without warning the user.
+
 
 The Solution's Core:
 
@@ -96,19 +102,33 @@ Edge cases:
 
 ### Mathematical Anomalies
 
-1. **Zero Variance (The Divide-by-Zero Crash)**
-   - _The Scenario_: A user enters identical raw scores for every single option under a specific criterion (e.g., all three cars listed have a top speed of 150mph).
-   - _The Danger_: The WSM Min-Max normalization formula is `(raw - min) / (max - min)`. If the maximum and minimum values are identical, the denominator becomes zero, forcing JavaScript to return `NaN` (Not a Number) and catastrophically breaking the entire mathematical cascade.
-   - _The Solution_: The WSM engine (`wsm.ts`) contains an explicit architectural safeguard before running the formula: `if (maxScore === minScore)`. If triggered, the system mathematically recognizes the perfect tie and bypasses the division formula entirely, explicitly awarding all options a perfect normalized value of `1` (100%).
+1. **Zero Variance (The Divide-by-Zero Crash):**
+   If a user enters identical raw scores for every single option under a specific criterion, the Min-Max normalization denominator (`max - min`) becomes zero. The engine intercepts this perfect tie and explicitly awards a normalized value of `1` (100%), preventing a `NaN` cascade in JavaScript.
 
-2. **The 1-or-2 Criterion Matrix Crash**
-   - _The Scenario_: A user creates only 1 or 2 criteria (or deletes existing criteria until only 1 or 2 remain).
-   - _The Danger_: The AHP Consistency Ratio (CR) formula requires dividing by the Random Index (RI). The RI for a $1 \times 1$ or $2 \times 2$ matrix is exactly `0` (because it is impossible to be logically inconsistent when comparing only two variables). Dividing by zero throws a `NaN` error in JavaScript, crashing the CR display calculations.
-   - _The Solution_: The AHP engine (`ahp.ts`) explicitly intercepts the calculation before it begins with an architectural safeguard: `if (n < 3) return 0;`. This bypasses the division and cleanly returns a perfect 0% inconsistency rating.
+2. **The 1-or-2 Criterion Matrix Crash:**
+   The AHP Consistency Ratio formula requires dividing by the Random Index (RI). However, the RI for a $1 \times 1$ or $2 \times 2$ matrix is exactly `0` (as logical inconsistency is impossible between only two variables). The system explicitly intercepts matrices smaller than 3x3 and cleanly returns a 0% inconsistency rating to avoid `NaN` calculation errors.
 
-### Concurrency & State Management
+3. **Missing/Null Data Handlers:**
+   Empty cells do not break matrix multiplication. Un-entered data defaults to a severe penalty score of `0.0` (worst possible outcome), allowing the rest of the matrix to calculate safely.
 
-1. **Cross-Tab State Synchronization (The Split-Brain Desync)**
-   - _The Scenario_: A user opens the application in two different browser tabs simultaneously and begins editing data in Tab A.
-   - _The Danger_: Web browsers isolate memory for each open window. If Tab A saves new data to the local device, Tab B doesn't automatically know about the update. If the user then switches to Tab B and makes a change, Tab B will blindly overwrite the device's shared memory with its outdated information, permanently destroying the work done in Tab A.
-   - _The Solution_: The application actively listens for background changes to the shared memory. Whenever a different window or tab updates the data, the current tab instantly detects the change, retrieves the fresh data, and updates its visual interface in real-time. This guarantees all open windows remain perfectly synchronized and prevents any data-loss collisions without the user needing to manually refresh.
+4. **Polymorphic Data Normalization:**
+   The engine safely compares absolute numbers against range objects (e.g., `15` vs `{min: 10, max: 20}`) by mathematically translating ranges into Expected Values (averages) _prior_ to calculating column minimums and maximums, preventing `NaN` data poisoning.
+
+### Input Safety & State Management (UI/UX)
+
+1. **Inverted Range Correction:**
+   If a user inputs a range backwards (e.g., "20-10"), the parser automatically applies `Math.min()` and `Math.max()` to invert the values to their proper logical order before saving to the global store.
+
+2. **Asynchronous Input Hydration:**
+   Built an `isTyping` state lock on the data cells. This prevents the reactive Svelte engine from overwriting the input box or crashing the math engine if the user pauses mid-keystroke on an invalid string (e.g., "10-").
+
+3. **Garbage Text Rejection:**
+   Strict Regex validation ensures that non-mathematical text strings (e.g., "apples") are instantly rejected, safely reverting the cell to its last valid database entry.
+
+4. **Floating-Point State Recovery:** Mitigated JavaScript decimal inaccuracies (e.g., calculating `1 / 0.333` as `3.000000003`) by applying strict rounding functions when reverse-engineering saved AHP fractions, ensuring UI sliders re-hydrate to precise integer coordinates on page refresh.
+
+### Concurrency
+
+1. **Cross-Tab State Synchronization (The Split-Brain Desync):**
+   Web browsers isolate memory for each open window.  If Tab A saves new data to the local device, Tab B doesn't automatically know about the update. If the user then switches to Tab B and makes a change, Tab B will blindly overwrite the device's shared memory with its outdated information, permanently destroying the work done in Tab A.
+   By having The application actively listens for background changes to `localStorage` and instantly retrieves fresh data to update its visual interface in real-time, guarantees all open windows remain perfectly synchronized and prevents any data-loss collisions without forcing manual refreshes.

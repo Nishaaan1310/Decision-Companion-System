@@ -30,12 +30,12 @@ The Evaluation Engine (Client-Side Module): Instead of a backend microservice, t
 Framework selection:
 React,Vue.js and svelet are considered for the UI. decided to use svelte framework as it is more faster due to its compiler approach and also is lightweight for a single page application.
 
-Execution plan: (Phase 1)
+**Execution plan: (Phase 1)**
 
-1. State Management: Define the data structure to hold the criteria, AHP slider values, and raw option scores in memory.
-2. The AHP Math Module: Write the pure JavaScript logic to calculate the matrix, eigenvalues, and Consistency Ratio.
-3. The WSM Module: Write the logic to normalize the raw scores and multiply them by the AHP weights.
-4. The UI Components: Build the bidirectional sliders and the final ranking podium.
+1. **State Management**: Define the data structure to hold the criteria, AHP slider values, and raw option scores in memory.
+2. **The AHP Math Module**: Write the pure JavaScript logic to calculate the matrix, eigenvalues, and Consistency Ratio.
+3. **The WSM Module**: Write the logic to normalize the raw scores and multiply them by the AHP weights.
+4. **The UI Components**: Build the bidirectional sliders and the final ranking podium.
 
 State Management (core pieces):
 
@@ -64,7 +64,7 @@ UI Components (core pieces):
 
 (27/02/2026 20:35) Current Progression:
 
-Phase 1 (complete):
+**Phase 1 (complete)**:
 
 State Management: Set up Svelte stores to track criteria, pairwise comparisons, and options.
 
@@ -74,7 +74,7 @@ Stage 1 UI (AHP Weighting): Built the interactive `AhpSlider` component for pair
 
 Stage 2 UI (WSM Evaluation): Developed the `DataCell` component and a dynamic data grid to input raw scores for options across criteria. Integrated the WSM engine to reactively normalize scores, apply AHP weights, and calculate final rankings. Added a leaderboard to visually highlight the mathematically optimal decision.
 
-Phase 2 Plans:
+**Phase 2 Plans**:
 
 1. Browser LocalStorage Integration
 2. Criteria Builder UI (note: current one uses hardcoded criterias)
@@ -183,6 +183,24 @@ Resolved a critical mathematical vulnerability where missing data inputs were de
    - Deployed the same strict, case-insensitive "Hard Block" validation layer (`isDuplicate` helper) used in the Criteria Builder to the new Options Builder.
    - This ensures a user can never accidentally create two identically named choices (e.g., two cars both named "Honda Civic"), which would render the final mathematical leaderboard confusing.
 
+(01/03/2026 02:30) Progression:
+
+**The Explainable Recommendation Engine**
+
+Evolved the system from a "Black Box" calculator into a transparent decision engine. By leveraging the mathematics of the Weighted Sum Model (WSM), the application now provides human-readable context explaining _why_ the optimal option won.
+
+**1. The Contribution Math (`calculateItemizedContributions()`)**
+
+- Added a utility function in `wsm.ts` that forensically breaks down an option's final score. It calculates the exact "Weighted Contribution" of each criterion (Raw Score x AHP Weight), allowing the system to identify the single criterion that carried the option to victory (The MVP Criterion).
+
+**2. The "Delta" Analysis (`findDecidingFactor()`)**
+
+- Added a comparative function in `wsm.ts` that pits the #1 ranked option against the #2 runner-up. It iterates through the math layer to find the specific criterion where the winner outperformed the runner-up by the largest margin (The Deciding Factor).
+
+**3. The Insight Component (`RecommendationInsight.svelte`)**
+
+- Created a decoupled UI component that acts as the translation layer. It subscribes to the final math rankings and the global memory state.
+- It dynamically generates a clean, narrative sentence explaining the mathematical results to the user (e.g., summarizing the MVP criterion and the primary deciding factor over the runner-up). This component is injected directly above the final leaderboard in the main dashboard.
 
 **Phase 2 Complete:**
 
@@ -191,5 +209,52 @@ Phase 2 successfully transformed the static calculator into a stateful, resilien
 1.  **Data Persistence**: Integrated a robust, self-healing wrapper around the native browser LocalStorage. Application state (Criteria, Options, Pairwise Comparisons) is now protected against crashes, tab closures, and page refreshes, and maintains perfect real-time synchronization across multiple open windows.
 2.  **Dynamic UI Builders**: Decoupled the monolithic UI by extracting the `CriteriaBuilder` and `OptionsBuilder` components. Users can now fully customize the evaluation framework on the fly.
 3.  **Edge Case Immunity**: Fortified the mathematical and data layers against edge cases including the Zero Variance Divide-by-Zero crash, AHP Consistency Matrix limits, LocalStorage JSON corruption, and Duplicate Naming collisions. The system now gracefully degrades and clearly communicates state issues via dedicated error banners.
+4.  **Explainable Recommendations**: Evolved the math engine from a "Black Box" into a transparent system, deploying custom Svelte components to dynamically translate complex WSM mathematics into human-readable insights that explain exactly _why_ the top option won.
 
 #####
+
+**Decision companion system V1 is Complete.**
+
+#####
+
+Phase 3 plans:
+
+1. The Uncertainty Engine (Range Values): Allow users to input ranges (e.g., "10-20") for uncertain data, using mathematical expected values for the WSM grid.
+
+2. Qualitative Data Mapping: Implement text-based scales (e.g., "Poor, Fair, Good, Excellent") that silently convert to precise mathematical scores under the hood.
+
+3. Hard Constraints (Dealbreakers): Add threshold logic that instantly disqualifies an option if it fails a critical requirement, regardless of its overall score.
+
+4. The Pareto Frontier (Value vs. Cost): Separate the WSM math into "Total Benefit" and "Total Cost" to recommend the absolute best "Value for Money" option.
+
+5. Ghost Scoring (Missing Data Scenarios): Upgrade the missing data failsafe to calculate Best-Case and Worst-Case scenarios for empty cells instead of just ignoring them.
+
+**(01/03/2026 15:00) The Uncertainty Engine (Range Values):**
+
+Upgraded the system to gracefully handle mathematical ambiguity, allowing users to input ranged values (e.g., "$80k - $100k" or "3 to 6 weeks") without crashing the rigid mathematical algorithms.
+
+**1. Data Structure Upgrades (`decisionStore.ts`)**
+
+- Replaced the strict number requirement for WSM grid scores with a new union type: `export type ScoreValue = number | { min: number; max: number };`. Updated the `updateOptionScore` function to accept this new polymorphic type.
+
+**2. Math Engine Translation Layer (`wsm.ts`)**
+
+- Created the `getExpectedValue()` helper bridging function. Because WSM matrix multiplication requires scalar numbers, this function intercepts range objects and dynamically calculates their mathematical expected value (average) using `(min + max) / 2`.
+- The core Min-Max normalization loop was subsequently patched to filter arrays through this Expected Value helper, definitively solving a severe `NaN` crash caused when comparing raw range objects against absolute numbers during min/max evaluation.
+
+**3. Smart UI Parser (`DataCell.svelte`)**
+
+- Refactored the data input cell from a rigid `number` input into a highly forgiving `text` input to allow hyphenated ranges.
+- Implemented a "Smart Real-Time Parser" utilizing Regex (`on:input`) to instantly translate string ranges into valid memory objects.
+- To prevent the real-time Reactivity engine from calculating mathematical averages while a user is mid-keystroke typing an incomplete bounds (e.g., "10-"), introduced an `isTyping` state lock. The UI silently pauses calculations for incomplete strings and resumes the instant the range logic is fulfilled.
+- Re-instituted failsafes: Restored the `empty-cell` accessibility class warnings and fixed ID regressions caused during the visual refactor.
+
+**(01/03/2026 15:30) Mistakes and corrections: AHP Slider State Desync**
+
+**UI Slider State Desync on Page Refresh:**
+
+- _The Problem_: When the user refreshed the page, the visual slider handles in the Pairwise Comparison section reset to the center (0) position. Although the underlying mathematical weights were successfully retained in LocalStorage and the global store, the `<AhpSlider.svelte>` component was built as a "One-Way Street" that broadcasted state but lacked a mechanism to read hydrated data backwards upon mount, making it appear as though data was lost.
+- _The Fix_: Upgraded the components to create a two-way data bridge.
+  1. Implemented a "Reverse Translation Engine" in `<AhpSlider.svelte>` (`$:`) that listens for hydrated props from the parent and instantly snaps the visual slider to the correct coordinate.
+  2. Created a `getSavedSliderProps()` helper function in `+page.svelte` that safely reverse-engineers the stored mathematical fractions back into whole integers (using `Math.round(1 / storedMath)` to prevent floating-point errors).
+  3. Deployed Svelte's `{@const}` declaration inside the HTML `{#each}` loop to instantly pass this reverse-engineered state down into the child components the moment the DOM mounts. The visual UI now perfectly reflects the persistent data layer across all browser refreshes.

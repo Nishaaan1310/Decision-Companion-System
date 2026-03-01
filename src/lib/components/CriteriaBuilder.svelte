@@ -1,7 +1,7 @@
 <script lang="ts">
     // 1. Import the store to read the current list, and the actions to modify it
-    import { criteriaStore } from '$lib/stores/decisionStore';
-    import { addCriterion, removeCriterion, updateCriterion } from '$lib/stores/decisionStore';
+    import { criteriaStore, addCriterion, removeCriterion, updateCriterion, updateCriterionDealbreaker } from '$lib/stores/decisionStore';
+    import type { Criterion } from '$lib/stores/decisionStore';
 
     // 2. Local state to track what the user is currently typing
     let newCriterionName = '';
@@ -12,6 +12,11 @@
 
     // NEW: Local state for displaying validation errors
     let errorMessage = '';
+
+// --- NEW: Local State for Dealbreaker Editing ---
+    let editHasDealbreaker: boolean = false;
+    let editDealbreakerType: 'min' | 'max' = 'max';
+    let editDealbreakerValue: number | string = ''; // string allows the input box to be completely empty
 
     // NEW: The core validation engine (case-insensitive)
     function isDuplicate(nameToCheck: string, ignoreId: string | null = null): boolean {
@@ -44,10 +49,15 @@
         }
 
     // --- NEW: Edit Handlers ---
-    function startEdit(criterion: { id: string, name: string, isCost: boolean }) {
+    function startEdit(criterion: Criterion) {
         editingId = criterion.id; // Lock the UI into edit mode for this specific row
         editName = criterion.name; // Pre-fill the input box with the current name
         editIsCost = criterion.isCost; // Grab the existing Cost/Benefit status
+        // Load dealbreaker data (with safe fallbacks if it's undefined)
+        editHasDealbreaker = criterion.hasDealbreaker || false;
+        // Smart default: If it's a Cost, they probably want a 'max' limit. If Benefit, a 'min' limit.
+        editDealbreakerType = criterion.dealbreakerType || (criterion.isCost ? 'max' : 'min');
+        editDealbreakerValue = criterion.dealbreakerValue ?? '';
     }
 
     function saveEdit() {
@@ -62,6 +72,9 @@
             }
 
             updateCriterion(editingId, trimmed, editIsCost);
+            // 2. Parse and save the dealbreaker info safely
+            const parsedVal = editDealbreakerValue === '' ? undefined : Number(editDealbreakerValue);
+            updateCriterionDealbreaker(editingId, editHasDealbreaker, editDealbreakerType, parsedVal);
         }
         editingId = null; 
     }
@@ -141,6 +154,29 @@
                             >
                                 {editIsCost ? 'Cost' : 'Benefit'}
                             </button>
+
+                            <div class="dealbreaker-config">
+                                <label class="dealbreaker-toggle">
+                                    <input type="checkbox" bind:checked={editHasDealbreaker} />
+                                    Set Hard Constraint (Dealbreaker)
+                                </label>
+
+                                {#if editHasDealbreaker}
+                                    <div class="dealbreaker-inputs">
+                                        <select bind:value={editDealbreakerType} class="type-select-mini">
+                                            <option value="min">Must be at least</option>
+                                            <option value="max">Must be less than</option>
+                                        </select>
+                                        <input 
+                                            type="number" 
+                                            placeholder="e.g., 1500" 
+                                            bind:value={editDealbreakerValue} 
+                                            class="value-input-mini"
+                                        />
+                                    </div>
+                                {/if}
+                            </div>
+
                             <div class="actions">
                                 <button class="save-btn" on:click={saveEdit}>Save</button>
                                 <button class="cancel-btn" on:click={cancelEdit}>Cancel</button>
@@ -156,6 +192,11 @@
                                 <span class="item-badge {criterion.isCost ? 'badge-cost' : 'badge-benefit'}">
                                     {criterion.isCost ? 'Cost' : 'Benefit'}
                                 </span>
+                                {#if criterion.hasDealbreaker && criterion.dealbreakerValue !== undefined}
+                                    <span class="dealbreaker-badge">
+                                        ⚠️ {criterion.dealbreakerType === 'max' ? '<=' : '>='} {criterion.dealbreakerValue}
+                                    </span>
+                                {/if}
                             </div>
                             
                             <div class="actions">

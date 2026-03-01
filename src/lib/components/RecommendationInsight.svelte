@@ -14,11 +14,17 @@
     let mvpCriterionName = '';
     let decidingCriterionName = '';
 
+    // NEW: State to track if this is the Last Man Standing
+    let isSoleSurvivor = false;
+
     // The Reactive Analysis Engine
     $: {
         if (rankings.length > 0 && $criteriaStore.length > 0 && weights.length > 0) {
             const winner = rankings[0];
             winnerName = winner.name;
+
+            // NEW: True if there is only 1 option OR if the 2nd place option is disqualified
+            isSoleSurvivor = rankings.length < 2 || !!rankings[1]?.isDisqualified;
             
             const criteriaIds = $criteriaStore.map(c => c.id);
 
@@ -30,7 +36,7 @@
             }
 
             // 2. Find the Deciding Factor (if there is a runner-up)
-            if (rankings.length > 1) {
+            if (!isSoleSurvivor &&rankings.length > 1) {
                 const runnerUp = rankings[1];
                 runnerUpName = runnerUp.name;
 
@@ -51,20 +57,32 @@
 {#if rankings.length > 0}
     <div class="insight-card">
         <h3>💡 Decision Insight</h3>
-        
-        <p class="primary-insight">
-            Based on your priorities, <strong>{winnerName}</strong> is your top recommendation. 
-            Its strongest contributing factor is its performance in <strong>{mvpCriterionName}</strong>.
-        </p>
 
-        {#if runnerUpName && decidingCriterionName}
-            <p class="secondary-insight">
-                While <strong>{runnerUpName}</strong> was a strong alternative, <strong>{winnerName}</strong> secured the win primarily because it outperformed the runner-up significantly in <strong>{decidingCriterionName}</strong>.
+        {#if isSoleSurvivor}
+            <p class="primary-insight sole-survivor-text">
+                <strong>{winnerName}</strong> is your recommended choice by default. 
+                It is the <em>only</em> option that successfully met all of your hard constraints and dealbreakers!
             </p>
-        {:else if runnerUpName && !decidingCriterionName}
             <p class="secondary-insight">
-                Fascinatingly, <strong>{winnerName}</strong> and <strong>{runnerUpName}</strong> are a perfect mathematical tie across all your criteria!
+                Even though it won by elimination, its strongest contributing factor based on your priorities is still its performance in <strong>{mvpCriterionName}</strong>.
             </p>
+
+            {:else}
+            
+            <p class="primary-insight">
+                Based on your priorities, <strong>{winnerName}</strong> is your top recommendation. 
+                Its strongest contributing factor is its performance in <strong>{mvpCriterionName}</strong>.
+            </p>
+
+            {#if runnerUpName && decidingCriterionName}
+                <p class="secondary-insight">
+                    While <strong>{runnerUpName}</strong> was a strong alternative, <strong>{winnerName}</strong> secured the win primarily because it outperformed the runner-up significantly in <strong>{decidingCriterionName}</strong>.
+                </p>
+            {:else if runnerUpName && !decidingCriterionName}
+                <p class="secondary-insight">
+                    Fascinatingly, <strong>{winnerName}</strong> and <strong>{runnerUpName}</strong> are a perfect mathematical tie across all your criteria!
+                </p>
+            {/if}
         {/if}
     </div>
 {/if}
@@ -111,5 +129,10 @@
         background-color: #e2e8f0;
         padding: 0.1rem 0.4rem;
         border-radius: 4px;
+    }
+
+    /* Add a subtle green highlight to celebrate finding a valid option */
+    .sole-survivor-text strong {
+        color: #16a34a; 
     }
 </style>

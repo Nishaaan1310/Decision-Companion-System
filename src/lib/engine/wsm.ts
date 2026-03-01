@@ -87,6 +87,9 @@ export interface RankedOption {
     id: string;
     name: string;
     score: number;
+    // NEW: Disqualification tracking
+    isDisqualified?: boolean;
+    disqualificationReason?: string;
 }
 
 /**
@@ -107,9 +110,28 @@ export function calculateWsmScores(
     // Step 1: Calculate the composite score for each option
     const results: RankedOption[] = options.map(opt => {
         let finalScore = 0;
+        let isDisqualified = false;
+        let disqualificationReason = '';
 
         // Iterate through each criterion to perform the WSM math
         criteria.forEach((crit, index) => {
+            // --- NEW: THE SURVIVAL CHECK (Dealbreaker Interceptor) ---
+            if (!isDisqualified && crit.hasDealbreaker && crit.dealbreakerValue !== undefined && crit.dealbreakerValue !== null) {
+                // We use our Phase 3 helper to safely extract the raw number (or range average)
+                const expectedValue = getExpectedValue(opt.scores[crit.id]);
+
+                if (expectedValue === undefined || expectedValue === null || isNaN(expectedValue)) {
+                    // Failsafe: Missing data instantly fails a hard constraint
+                    isDisqualified = true;
+                    disqualificationReason = `Missing data for ${crit.name}`;
+                } else if (crit.dealbreakerType === 'max' && expectedValue > crit.dealbreakerValue) {
+                    isDisqualified = true;
+                    disqualificationReason = `Exceeded max limit for ${crit.name} (Value: ${expectedValue})`;
+                } else if (crit.dealbreakerType === 'min' && expectedValue < crit.dealbreakerValue) {
+                    isDisqualified = true;
+                    disqualificationReason = `Failed min requirement for ${crit.name} (Value: ${expectedValue})`;
+                }
+            }
             const normalizedValue = normalizedData[opt.id][crit.id] || 0;
             
             // The core WSM equation
@@ -119,12 +141,23 @@ export function calculateWsmScores(
         return {
             id: opt.id,
             name: opt.name,
-            score: finalScore
+            score: finalScore,
+            isDisqualified,
+            disqualificationReason
         };
     });
 
     // Step 2: Sort the final array descending (highest score is index 0)
-    return results.sort((a, b) => b.score - a.score);
+    // Step 2: Sort the final array (Disqualified options ALWAYS sink to the bottom)
+    return results.sort((a, b) => {
+        // If 'a' is disqualified but 'b' is not, 'b' wins automatically
+        if (a.isDisqualified && !b.isDisqualified) return 1;
+        // If 'b' is disqualified but 'a' is not, 'a' wins automatically
+        if (!a.isDisqualified && b.isDisqualified) return -1;
+        
+        // Otherwise, sort normally by the WSM math score (highest first)
+        return b.score - a.score;
+    });
 }
 
 // Define the structure for our score breakdown

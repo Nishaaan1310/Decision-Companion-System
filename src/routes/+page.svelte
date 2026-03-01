@@ -256,11 +256,18 @@
         <section class="leaderboard-section">
             <h2>Final Recommendation</h2>
         
-            <RecommendationInsight 
-                rankings={finalRankings} 
-                normalizedData={currentNormalizedData} 
-                weights={weights} 
-            />
+            {#if !finalRankings[0].isDisqualified}
+                <RecommendationInsight 
+                    rankings={finalRankings} 
+                    normalizedData={currentNormalizedData} 
+                    weights={weights} 
+                />
+            {:else}
+                <div class="catastrophic-failure-banner">
+                    <strong>🚨 No Valid Options:</strong> Every single option failed your hard constraints (Dealbreakers). 
+                    You must either relax your rules or find new options.
+                </div>
+            {/if}
             
             {#if missingDataCount > 0 && $optionsStore.length > 0 && $criteriaStore.length > 0}
                 <div class="warning-banner">
@@ -271,15 +278,38 @@
 
             <div class="rankings-list">
                 {#each finalRankings as result, index}
-                    <div class="ranking-card {index === 0 ? 'winner' : ''}">
-                        <div class="rank-number">#{index + 1}</div>
+                    <div class="ranking-card 
+                        {index === 0 && !result.isDisqualified ? 'winner' : ''} 
+                        {result.isDisqualified ? 'disqualified' : ''}"
+                    >
+                        
+                        <div class="rank-number">
+                            {#if result.isDisqualified}
+                                ❌
+                            {:else}
+                                #{index + 1}
+                            {/if}
+                        </div>
+                        
                         <div class="rank-details">
                             <span class="rank-name">{result.name}</span>
+                            
+                            {#if result.isDisqualified}
+                                <span class="disqualified-reason">
+                                    🚫 Eliminated: {result.disqualificationReason}
+                                </span>
+                            {/if}
                         </div>
+                        
                         <div class="rank-score">
-                            {(result.score * 100).toFixed(1)} 
-                            <span class="score-label">pts</span>
+                            {#if result.isDisqualified}
+                                <span class="score-label">N/A</span>
+                            {:else}
+                                {(result.score * 100).toFixed(1)} 
+                                <span class="score-label">pts</span>
+                            {/if}
                         </div>
+                        
                     </div>
                 {/each}
             </div>
@@ -556,4 +586,33 @@
         margin-bottom: 1.5rem;
         font-size: 0.95rem;
     }
+    
+    /* NEW: Dealbreaker Styling */
+    .catastrophic-failure-banner {
+        background-color: #fee2e2;
+        color: #991b1b;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        border-left: 4px solid #ef4444;
+    }
+
+    .ranking-card.disqualified {
+        opacity: 0.6;
+        background-color: #f3f4f6;
+        border-color: #d1d5db;
+        /* Optional: Add a subtle greyscale effect */
+        filter: grayscale(100%); 
+    }
+
+    .disqualified-reason {
+        display: block;
+        margin-top: 0.25rem;
+        font-size: 0.8rem;
+        color: #dc2626;
+        font-weight: 500;
+    }
+
+
+
 </style>

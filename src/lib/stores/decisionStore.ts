@@ -11,6 +11,11 @@ export interface Criterion {
     id: string;
     name: string;
     isCost: boolean;
+    
+    // NEW: Phase 3 Dealbreaker (Hard Constraints)
+    hasDealbreaker?: boolean; 
+    dealbreakerType?: 'min' | 'max'; 
+    dealbreakerValue?: number;
 }
 
 export interface ComparisonMap {
@@ -120,7 +125,8 @@ export function addCriterion(name: string, isCost: boolean) {
         const newCriterion: Criterion = {
             id: `crit_${generateId()}`,
             name: name.trim(),
-            isCost: isCost
+            isCost: isCost,
+            hasDealbreaker: false // NEW: Explicitly initialize to false
         };
         // Return a brand new array to trigger Svelte's reactivity
         return [...currentCriteria, newCriterion];
@@ -165,6 +171,27 @@ export function updateCriterion(id: string, newName: string, newIsCost: boolean)
             if (c.id === id) {
                 // NEW: We now overwrite both 'name' and 'isCost'
                 return { ...c, name: newName, isCost: newIsCost };
+            }
+            return c;
+        })
+    );
+}
+// Action: Save hard constraints/dealbreakers to a specific criterion
+export function updateCriterionDealbreaker(
+    id: string, 
+    hasDealbreaker: boolean, 
+    dealbreakerType?: 'min' | 'max', 
+    dealbreakerValue?: number
+) {
+    criteriaStore.update(criteria => 
+        criteria.map(c => {
+            if (c.id === id) {
+                return { 
+                    ...c, 
+                    hasDealbreaker, 
+                    dealbreakerType, 
+                    dealbreakerValue 
+                };
             }
             return c;
         })

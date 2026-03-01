@@ -11,7 +11,7 @@ Assumptions Made:
 6. Missing Data implies the Worst-Case Scenario: The system assumes that an empty data cell represents the worst possible outcome for that specific criterion, automatically assigning it a normalized score of 0.0 rather than a neutral or average score.
 7. Uniform Distribution for Ranges: When a user inputs a range (e.g., 10-20), the engine mathematically assumes a uniform probability—meaning it assumes the true value will fall exactly in the middle (15).
 8. Independence of Criteria: (This is a fundamental assumption of WSM and AHP math). The system assumes that all criteria are independent of one another. If a user creates two criteria that mean the same thing (e.g., "Price" and "Affordability"), the engine will mathematically double-count that factor without warning the user.
-
+9. Assumes taht user has max 10 criteria.
 
 The Solution's Core:
 

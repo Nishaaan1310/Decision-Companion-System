@@ -1,22 +1,40 @@
 <script lang="ts">
     // 1. Import the store to read the current list, and the actions to modify it
-    import { criteriaStore, addCriterion, removeCriterion, updateCriterion, updateCriterionDealbreaker } from '$lib/stores/decisionStore';
+    import { criteriaStore, addCriterion, removeCriterion, updateCriterion, updateCriterionDealbreaker, updateCriterionScale } from '$lib/stores/decisionStore';
     import type { Criterion } from '$lib/stores/decisionStore';
 
     // 2. Local state to track what the user is currently typing
     let newCriterionName = '';
-    let editIsCost: boolean = false;
+    // 3. Local state to track the polarity toggle (defaults to Benefit/false)
+    let isCost = false;
+
+    // NEW: Dealbreaker state for the creation form
+    let newHasDealbreaker: boolean = false;
+    let newDealbreakerType: 'min' | 'max' = 'max';
+    let newDealbreakerValue: number | string = '';
+
     // --- NEW: Local State for Inline Editing ---
     let editingId: string | null = null;
     let editName: string = '';
-
-    // NEW: Local state for displaying validation errors
-    let errorMessage = '';
-
-// --- NEW: Local State for Dealbreaker Editing ---
+    // --- NEW: Local State for Dealbreaker Editing ---
     let editHasDealbreaker: boolean = false;
     let editDealbreakerType: 'min' | 'max' = 'max';
     let editDealbreakerValue: number | string = ''; // string allows the input box to be completely empty
+    let editIsCost: boolean = false;
+    let editIsSubjective: boolean = false;
+
+    // NEW: Subjective Scale state for the creation form
+    let newIsSubjective: boolean = false;
+    let defaultScale = [
+        { label: 'Poor', value: 1 },
+        { label: 'Fair', value: 2 },
+        { label: 'Average', value: 3 },
+        { label: 'Good', value: 4 },
+        { label: 'Excellent', value: 5 }
+    ];
+
+    // NEW: Local state for displaying validation errors
+    let errorMessage = '';
 
     // NEW: The core validation engine (case-insensitive)
     function isDuplicate(nameToCheck: string, ignoreId: string | null = null): boolean {
@@ -26,27 +44,37 @@
         );
     }
     
-    // 3. Local state to track the polarity toggle (defaults to Benefit/false)
-    let isCost = false;
-    
 
     // 4. The function triggered when the user clicks the "Add" button
     function handleAdd() {
-            errorMessage = ''; // Clear previous errors
-            const trimmed = newCriterionName.trim();
-            
-            if (trimmed !== '') {
-                // Check the gate
-                if (isDuplicate(trimmed)) {
-                    errorMessage = `A criterion named "${trimmed}" already exists.`;
-                    return; // Stop execution, do not add to store
-                }
-
-                addCriterion(trimmed, isCost);
-                newCriterionName = '';
-                isCost = false;
+        errorMessage = ''; // Clear previous errors
+        const trimmed = newCriterionName.trim();
+        
+        if (trimmed !== '') {
+            // Check the gate
+            if (isDuplicate(trimmed)) {
+                errorMessage = `A criterion named "${trimmed}" already exists.`;
+                return; // Stop execution, do not add to store
             }
+
+            // NEW: Parse the dealbreaker value safely
+            const parsedVal = newDealbreakerValue === '' ? undefined : Number(newDealbreakerValue);
+            // NEW: Determine if we should pass the default scale
+            const scaleToSave = newIsSubjective ? defaultScale : undefined;
+
+            // NEW: Pass all 5 arguments to the updated store action
+            addCriterion(trimmed, isCost, newHasDealbreaker, newDealbreakerType, parsedVal, scaleToSave);
+            
+            // NEW: Reset the entire form to clean defaults after successful addition
+            newCriterionName = '';
+            isCost = false;
+            newHasDealbreaker = false;
+            newDealbreakerType = 'max';
+            newDealbreakerValue = '';
+            // NEW: Reset the subjective toggle
+            newIsSubjective = false;
         }
+    }
 
     // --- NEW: Edit Handlers ---
     function startEdit(criterion: Criterion) {
@@ -58,6 +86,8 @@
         // Smart default: If it's a Cost, they probably want a 'max' limit. If Benefit, a 'min' limit.
         editDealbreakerType = criterion.dealbreakerType || (criterion.isCost ? 'max' : 'min');
         editDealbreakerValue = criterion.dealbreakerValue ?? '';
+        // NEW: Load the subjective state (true if the scale exists and has items)
+        editIsSubjective = !!(criterion.qualitativeScale && criterion.qualitativeScale.length > 0);
     }
 
     function saveEdit() {
@@ -75,6 +105,9 @@
             // 2. Parse and save the dealbreaker info safely
             const parsedVal = editDealbreakerValue === '' ? undefined : Number(editDealbreakerValue);
             updateCriterionDealbreaker(editingId, editHasDealbreaker, editDealbreakerType, parsedVal);
+            // NEW: Save or remove the subjective scale
+            const scaleToSave = editIsSubjective ? defaultScale : undefined;
+            updateCriterionScale(editingId, scaleToSave);
         }
         editingId = null; 
     }
@@ -89,35 +122,84 @@
 <div class="builder-container">
     <h3>Define Decision Criteria</h3>
     
-    <div class="input-group">
-        <div class="input-wrapper">
-            <label for="criterion-name" class="sr-only">Criterion Name</label>
-            <input 
-                id="criterion-name"
-                type="text" 
-                placeholder="e.g., Cost, Performance, Risk..." 
-                bind:value={newCriterionName}
-                class="name-input"
-                disabled={$criteriaStore.length >= 10}
-                on:keydown={(e) => e.key === 'Enter' && newCriterionName.trim() !== '' && $criteriaStore.length < 10 && handleAdd()}
-            />
+    <div class="builder-form">
+        <div class="input-row">
+            <div class="input-wrapper">
+                <label for="criterion-name" class="sr-only">Criterion Name</label>
+                <input 
+                    id="criterion-name"
+                    type="text" 
+                    placeholder="e.g., Cost, Performance..." 
+                    bind:value={newCriterionName}
+                    class="name-input"
+                    disabled={$criteriaStore.length >= 10}
+                    on:keydown={(e) => e.key === 'Enter' && newCriterionName.trim() !== '' && $criteriaStore.length < 10 && handleAdd()}
+                />
+            </div>
+
+            <div class="input-wrapper">
+                <label for="criterion-type" class="sr-only">Criterion Type</label>
+                <select id="criterion-type" bind:value={isCost} class="type-select" disabled={$criteriaStore.length >= 10}>
+                    <option value={false}>Benefit (Higher is Better)</option>
+                    <option value={true}>Cost (Lower is Better)</option>
+                </select>
+            </div>
         </div>
 
-        <div class="input-wrapper">
-            <label for="criterion-type" class="sr-only">Criterion Type</label>
-            <select id="criterion-type" bind:value={isCost} class="type-select" disabled={$criteriaStore.length >= 10}>
-                <option value={false}>Benefit (Higher is Better)</option>
-                <option value={true}>Cost (Lower is Better)</option>
-            </select>
+        <div class="dealbreaker-row">
+            <label class="dealbreaker-checkbox-label">
+                <input 
+                    type="checkbox" 
+                    bind:checked={newHasDealbreaker}
+                    disabled={$criteriaStore.length >= 10}
+                />
+                <span>Add a Hard Constraint (Dealbreaker)</span>
+            </label>
+
+            {#if newHasDealbreaker}
+                <div class="dealbreaker-inline-fields">
+                    <span class="db-text">Must be</span>
+                    <select bind:value={newDealbreakerType} class="db-select">
+                        <option value="max">Less than or equal to (≤)</option>
+                        <option value="min">Greater than or equal to (≥)</option>
+                    </select>
+                    <input 
+                        type="number" 
+                        placeholder="e.g., 1500" 
+                        bind:value={newDealbreakerValue} 
+                        class="db-input"
+                        on:keydown={(e) => e.key === 'Enter' && newCriterionName.trim() !== '' && $criteriaStore.length < 10 && handleAdd()}
+                    />
+                </div>
+            {/if}
+        </div>
+
+        <div class="subjective-row">
+            <label class="subjective-checkbox-label">
+                <input 
+                    type="checkbox" 
+                    bind:checked={newIsSubjective}
+                    disabled={$criteriaStore.length >= 10}
+                />
+                <span>Use Subjective Scale (Text instead of Numbers)</span>
+            </label>
+
+            {#if newIsSubjective}
+                <div class="subjective-preview">
+                    <span class="preview-text">
+                        <strong>Preview:</strong> You will select from: Poor (1), Fair (2), Average (3), Good (4), Excellent (5).
+                    </span>
+                </div>
+            {/if}
         </div>
 
         <button 
-            class="add-btn" 
+            class="add-btn form-submit-btn" 
             on:click={handleAdd} 
             disabled={newCriterionName.trim() === '' || $criteriaStore.length >= 10}
             title={$criteriaStore.length >= 10 ? 'Maximum criteria reached' : (newCriterionName.trim() === '' ? 'Enter a name to unlock' : 'Add Criterion')}
         >
-            {$criteriaStore.length >= 10 ? 'MAXIMUM REACHED' : (newCriterionName.trim() === '' ? '🔒 Locked' : '+ Add')}
+            {$criteriaStore.length >= 10 ? 'MAXIMUM REACHED' : (newCriterionName.trim() === '' ? '🔒 Locked' : '+ Add Criterion')}
         </button>
     </div>
     
@@ -177,6 +259,13 @@
                                 {/if}
                             </div>
 
+                            <div class="subjective-config">
+                                <label class="subjective-toggle">
+                                    <input type="checkbox" bind:checked={editIsSubjective} />
+                                    Use Subjective Scale (Text instead of Numbers)
+                                </label>
+                            </div>
+
                             <div class="actions">
                                 <button class="save-btn" on:click={saveEdit}>Save</button>
                                 <button class="cancel-btn" on:click={cancelEdit}>Cancel</button>
@@ -195,6 +284,12 @@
                                 {#if criterion.hasDealbreaker && criterion.dealbreakerValue !== undefined}
                                     <span class="dealbreaker-badge">
                                         ⚠️ {criterion.dealbreakerType === 'max' ? '<=' : '>='} {criterion.dealbreakerValue}
+                                    </span>
+                                {/if}
+
+                                {#if criterion.qualitativeScale && criterion.qualitativeScale.length > 0}
+                                    <span class="subjective-badge">
+                                        📝 Text Scale
                                     </span>
                                 {/if}
                             </div>
@@ -233,12 +328,7 @@
         color: #111827;
         font-size: 1.25rem;
     }
-    .input-group {
-        display: flex;
-        gap: 1rem;
-        margin-bottom: 1.5rem;
-        flex-wrap: wrap;
-    }
+ 
     .input-wrapper {
         flex: 1;
         min-width: 200px;
@@ -423,4 +513,158 @@
     margin-top: 0.5rem;
     font-weight: bold;
     }
+
+    /* NEW: Creation Dealbreaker Styles */
+   
+
+    .dealbreaker-checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #374151;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .dealbreaker-inline-fields {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-left: 1.5rem; /* Indent slightly to show it belongs to the checkbox */
+        background-color: #f9fafb;
+        padding: 0.75rem;
+        border-radius: 6px;
+        border: 1px solid #e5e7eb;
+    }
+
+    .db-text {
+        font-size: 0.875rem;
+        color: #374151;
+        font-weight: 500;
+    }
+
+    .db-select, .db-input {
+        padding: 0.4rem 0.5rem;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        font-size: 0.875rem;
+    }
+
+    .db-input {
+        width: 120px;
+    }
+
+    .builder-form {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        background-color: #ffffff;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+    }
+
+    .input-row {
+        display: flex;
+        gap: 1rem;
+    }
+
+    /* Make the input wrappers share the space nicely */
+    .input-wrapper {
+        flex: 1; 
+        display: flex;
+        flex-direction: column;
+    }
+
+    .name-input, .type-select {
+        width: 100%;
+        padding: 0.6rem;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 1rem;
+    }
+
+    .dealbreaker-row {
+        background-color: #f9fafb;
+        padding: 0.75rem;
+        border-radius: 6px;
+        border: 1px solid #e5e7eb;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .form-submit-btn {
+        width: 100%; /* Makes the button full width to anchor the form */
+        padding: 0.75rem;
+        font-size: 1rem;
+        font-weight: 600;
+        justify-content: center;
+        margin-top: 0.5rem;
+    }
+
+    /* Subjective Row Styles */
+    .subjective-row {
+        background-color: #f9fafb;
+        padding: 0.75rem;
+        border-radius: 6px;
+        border: 1px solid #e5e7eb;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .subjective-checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #374151;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .subjective-preview {
+        margin-left: 1.5rem;
+        padding: 0.5rem 0.75rem;
+        background-color: #f3f4f6;
+        border-radius: 4px;
+        border-left: 3px solid #3b82f6; /* Blue accent to show it's info */
+    }
+
+    .preview-text {
+        font-size: 0.8rem;
+        color: #4b5563;
+    }
+
+    /* Subjective Edit Mode Styles */
+    .subjective-config {
+        margin-top: 0.5rem;
+        padding-top: 0.5rem;
+        border-top: 1px dotted #cbd5e1;
+    }
+
+    .subjective-toggle {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+        color: #475569;
+        cursor: pointer;
+    }
+
+    /* Badge for Read Mode */
+    .subjective-badge {
+        background-color: #e0e7ff;
+        color: #4338ca;
+        padding: 0.2rem 0.5rem;
+        border-radius: 9999px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        margin-left: 0.5rem;
+    }
+
 </style>

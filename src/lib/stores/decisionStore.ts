@@ -13,6 +13,12 @@ export type ScoreValue = number | { min: number; max: number };
 
 // --- Interfaces (The Data Contracts) ---
 
+
+export interface QualitativeLabel {
+    label: string;
+    value: number;
+}
+
 export interface Criterion {
     id: string;
     name: string;
@@ -22,6 +28,8 @@ export interface Criterion {
     hasDealbreaker?: boolean; 
     dealbreakerType?: 'min' | 'max'; 
     dealbreakerValue?: number;
+    // NEW: Optional scale for subjective criteria (Text-to-Math)
+    qualitativeScale?: QualitativeLabel[];
 }
 
 export interface ComparisonMap {
@@ -126,13 +134,27 @@ function generateId(): string {
 }
 
 // Action: Safely inject a new criterion into the global memory
-export function addCriterion(name: string, isCost: boolean) {
+export function addCriterion(
+    name: string, 
+    isCost: boolean, 
+    // NEW: Optional parameters for setting dealbreakers right at creation
+    hasDealbreaker: boolean = false,
+    dealbreakerType?: 'min' | 'max',
+    dealbreakerValue?: number,
+    // NEW: Optional scale parameter
+    qualitativeScale?: QualitativeLabel[]
+) {
     criteriaStore.update(currentCriteria => {
         const newCriterion: Criterion = {
             id: `crit_${generateId()}`,
             name: name.trim(),
             isCost: isCost,
-            hasDealbreaker: false // NEW: Explicitly initialize to false
+            // NEW: Save the dealbreaker config immediately
+            hasDealbreaker: hasDealbreaker,
+            dealbreakerType: dealbreakerType,
+            dealbreakerValue: dealbreakerValue,
+            // NEW: Save the scale if it exists
+            qualitativeScale: qualitativeScale
         };
         // Return a brand new array to trigger Svelte's reactivity
         return [...currentCriteria, newCriterion];
@@ -201,6 +223,17 @@ export function updateCriterionDealbreaker(
             }
             return c;
         })
+    );
+}
+
+// Action: Update the subjective scale of an existing criterion
+export function updateCriterionScale(id: string, qualitativeScale?: QualitativeLabel[]) {
+    criteriaStore.update(criteria =>
+        criteria.map(c => 
+            c.id === id 
+                ? { ...c, qualitativeScale: qualitativeScale } 
+                : c
+        )
     );
 }
 

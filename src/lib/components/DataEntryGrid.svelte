@@ -34,6 +34,7 @@
                                     value={option.scores[criterion.id]} 
                                     criterionName={criterion.name} 
                                     optionName={option.name}
+                                    qualitativeScale={criterion.qualitativeScale}
                                     onUpdate={(detail) => updateOptionScore(option.id, criterion.id, detail.value)} 
                                 />
                             </td>

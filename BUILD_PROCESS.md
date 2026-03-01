@@ -183,6 +183,7 @@ Resolved a critical mathematical vulnerability where missing data inputs were de
    - Deployed the same strict, case-insensitive "Hard Block" validation layer (`isDuplicate` helper) used in the Criteria Builder to the new Options Builder.
    - This ensures a user can never accidentally create two identically named choices (e.g., two cars both named "Honda Civic"), which would render the final mathematical leaderboard confusing.
 
+
 (01/03/2026 02:30) Progression:
 
 **The Explainable Recommendation Engine**
@@ -258,3 +259,87 @@ Upgraded the system to gracefully handle mathematical ambiguity, allowing users 
   1. Implemented a "Reverse Translation Engine" in `<AhpSlider.svelte>` (`$:`) that listens for hydrated props from the parent and instantly snaps the visual slider to the correct coordinate.
   2. Created a `getSavedSliderProps()` helper function in `+page.svelte` that safely reverse-engineers the stored mathematical fractions back into whole integers (using `Math.round(1 / storedMath)` to prevent floating-point errors).
   3. Deployed Svelte's `{@const}` declaration inside the HTML `{#each}` loop to instantly pass this reverse-engineered state down into the child components the moment the DOM mounts. The visual UI now perfectly reflects the persistent data layer across all browser refreshes.
+
+#####
+
+**(01/03/2026 16:30) Hard Constraints (Dealbreakers):**
+
+Introduced a "Non-Compensatory" layer to the evaluation engine to prevent the math from artificially boosting options that excel in minor categories but fail critical minimum requirements (e.g., exceeding a strict budget ceiling).
+
+**1. The Data Layer Upgrade (`decisionStore.ts`)**
+
+- Expanded the `Criterion` interface to support optional threshold data (`hasDealbreaker`, `dealbreakerType`, and `dealbreakerValue`).
+- Added a new `updateCriterionDealbreaker()` store action to safely save these strict limits into the persistent global memory.
+
+**2. The UI & Presentation Upgrades (`CriteriaBuilder`, `+page.svelte`, `RecommendationInsight`)**
+
+- Added a "Set Hard Constraint" toggle within the criteria edit panel. When activated, users can specify a strict "Must be at least" (min) or "Must be less than" (max) numerical limit.
+- Added visual `⚠️` dealbreaker badges to the active criteria list to clearly indicate which factors have strict constraints applied.
+
+- Stripped disqualified options out of the primary ranking system. They are now rendered at the bottom of the dashboard with a subdued UI treatment (`opacity: 0.6`, greyscale filter) and a clear red badge explaining exactly _why_ they were eliminated.
+- Upgraded the `RecommendationInsight` component to detect "Sole Survivor" scenarios. If all options except one are eliminated by dealbreakers, the text dynamically shifts to declare a win by elimination rather than purely by mathematical points.
+- Implemented a "Catastrophic Failure" banner that warns the user if their dealbreaker rules were so strict that _every single option_ was disqualified.
+
+**3. The Math Engine Interceptor (`wsm.ts`)**
+
+- Updated the WSM execution loop with a "Survival Check". Before compiling the final leaderboard scores, the engine forensically passes every option through the `getExpectedValue()` helper.
+- If an option violates any defined dealbreaker boundary or if data is entirely missing, it is immediately tagged with `isDisqualified: true` and assigned a specific `disqualificationReason` string.
+
+#####
+
+**(01/03/2026 20:30) Architectural Refactoring (Separation of Concerns):**
+
+To elevate the application from a prototype to production enterprise software, a massive architectural tear-down was conducted on the main `+page.svelte` file (which had become a 600-line "God Component").
+
+**1. The Logic Layer Upgrade (Derived Stores)**
+
+- _The Problem:_ The UI component was importing raw mathematical engine functions (`ahp.ts`, `wsm.ts`) and using Svelte reactive blocks (`$:`) to manually compute the AHP matrix, weights, and final WSM rankings whenever data changed. UI components should not execute heavy business logic.
+- _The Fix:_ Upgraded `decisionStore.ts` using Svelte's `derived()` feature. The Store is no longer lazy—the millisecond raw data enters the store, it automatically funnels through the internal math engines and exports pristine `ahpMatrixStore`, `weightsStore`, and `finalRankingsStore` objects. The UI now simply reads the final answers without performing any calculations.
+
+**2. The Presentation Layer Decoupling (Component Splitting)**
+
+- _The Problem:_ `+page.svelte` contained massive, tangled blocks of HTML loops for the distinct phases of the application.
+- _The Fix:_ Sliced the presentation layer into three highly focused, decoupled components that import their specific derived stores automatically:
+  1. `<PairwiseComparisonList />`: Orchestrates the AHP slider loop.
+  2. `<DataEntryGrid />`: Encapsulates the raw data matrix table and missing data trackers.
+  3. `<Leaderboard />`: Takes over the final ranking cards, catastrophic failure banners, and the `RecommendationInsight` component.
+- `+page.svelte` was successfully reduced to a clean, top-level orchestrator.
+
+**Resolving the Reactivity "Diamond Dependency" Engine Crash** (Bug introduced during Refactoring)
+
+- _The Problem:_ Moving to automated `derived` stores introduced a fatal race condition. When a user added a new Option, `leaderboardStore` (which depends on `optionsStore`) fired a millisecond _before_ the `normalizedDataStore` finished calculating the new option's 0-1 metrics. Reading `undefined` data caused a silent `TypeError` that totally halted Svelte's reactivity engine.
+- _The Fix:_ Handled asynchronous store states by injecting defensive Optional Chaining (`normalizedData[opt.id]?.[crit.id] || 0`) into the WSM calculation engine (`wsm.ts`). Svelte safely reads `0` during the split-second gap, preventing the crash, and recalculates perfectly the instant the normalized data arrives.
+
+#####
+
+**(02/03/2026 01:10) Qualitative Data Mapping (The "Text-to-Math" Bridge):**
+
+Implemented a vital abstraction layer allowing the UI to collect subjective inputs (e.g., "Poor", "Excellent") while feeding pure numerical matrices to the AHP/WSM math engines.
+
+**1. The Data Dictionary Extension (`decisionStore.ts`)**
+
+- Expanded the `Criterion` interface with an optional `qualitativeScale` property.
+- This stores an array of mappings (e.g., `[{ label: "Poor", value: 1 }, ... ]`), establishing a rigid translation schema for any subjective criterion.
+- Built corresponding CRUD logic (`updateCriterionScale`) to safely persist these mapping arrays in persistent memory.
+
+**2. The UI Configuration (`CriteriaBuilder.svelte`)**
+
+- Added a "Use Subjective Scale" toggle when adding or editing decision criteria.
+- Activating this toggle automatically provisions a pre-configured 1-5 scale ("Poor", "Fair", "Average", "Good", "Excellent").
+- Added distinct visual UI badges (`📝 Text Scale`) to the criteria list to clearly identify subjective metrics at a glance.
+
+**3. The Smart Input Swap (`DataEntryGrid.svelte` & `DataCell.svelte`)**
+
+- Modified the main `DataEntryGrid` to pass the `qualitativeScale` dictionary down to the individual cell level.
+- Re-architected `DataCell.svelte` into a polymorphic input component.
+  - If a scale is absent, it renders a standard text input field for numbers and ranges.
+  - If a scale is detected, it instantly swaps to a `<select>` dropdown populated exclusively with the human-readable labels.
+
+**4. The Translation Layer (Preserving Math Purity)**
+
+- Built a seamless translation bridge inside `DataCell.svelte`: When a user selects a textual option like "Excellent" from the dropdown, the component intercepts the interaction, looks up the numeric representation (`5`), and dispatches the _number_ to the global `optionsStore`.
+- _Architectural Win_: This ensures that the core math execution engines (`wsm.ts` and `ahp.ts`) require zero code alterations. They remain strictly mathematical, unaware that the data originated from qualitative text selections.
+
+Changes:
+
+**UX Improvements (Criteria Builder):** - Fixed discoverability issues by moving the Dealbreaker UI out of the "Edit-only" state and natively into the inline Creation form.

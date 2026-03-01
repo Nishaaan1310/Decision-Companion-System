@@ -64,14 +64,26 @@
     }
 </script>
 <div class="builder-container">
+    <div class="header-section">
+        <h3>Add Competing Options</h3>
+        <p class="subtitle">Enter the alternatives you want to evaluate and compare.</p>
+    </div>
+
     <div class="add-section">
         <input 
             type="text" 
             bind:value={newOptionName} 
+            class="name-input"
             placeholder="e.g., Car A, Vendor B, Software C..."
             on:keydown={(e) => e.key === 'Enter' && handleAdd()}
         />
-        <button class="add-btn" on:click={handleAdd}>Add</button>
+        <button 
+            class="add-btn" 
+            on:click={handleAdd}
+            disabled={newOptionName.trim() === ''}
+        >
+            {newOptionName.trim() === '' ? '🔒 Locked' : '+ Add Option'}
+        </button>
     </div>
 
     {#if errorMessage}
@@ -88,6 +100,7 @@
                         <input 
                             type="text" 
                             bind:value={editName}
+                            class="name-input edit-input"
                             on:keydown={(e) => e.key === 'Enter' && saveEdit()}
                             on:keydown={(e) => e.key === 'Escape' && cancelEdit()}
                         />
@@ -110,35 +123,87 @@
 
 <style>
     .builder-container {
+        background: #ffffff;
+        padding: 1.5rem;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        margin-bottom: 2rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         display: flex;
         flex-direction: column;
         gap: 1rem;
     }
 
+    .header-section {
+        margin-bottom: 0.5rem;
+    }
+
+    h3 {
+        margin-top: 0;
+        margin-bottom: 0.25rem;
+        color: #111827;
+        font-size: 1.25rem;
+    }
+
+    .subtitle {
+        margin: 0;
+        color: #6b7280;
+        font-size: 0.875rem;
+    }
+
     .add-section {
         display: flex;
-        gap: 0.5rem;
+        gap: 0.75rem;
+        background-color: #f9fafb;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        align-items: center;
     }
 
-    input[type="text"] {
+    .name-input {
         flex-grow: 1;
-        padding: 0.5rem;
-        border: 1px solid #ccc;
-        border-radius: 4px;
+        padding: 0.75rem;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
         font-size: 1rem;
+        font-family: inherit;
+        transition: all 0.2s;
     }
 
-    button {
-        padding: 0.5rem 1rem;
+    .name-input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        background-color: #ffffff;
+    }
+
+    .edit-input {
+        padding: 0.5rem;
+    }
+
+    .add-btn {
+        padding: 0.75rem 1.5rem;
         border: none;
-        border-radius: 4px;
+        border-radius: 6px;
         cursor: pointer;
-        font-weight: bold;
-        transition: background-color 0.2s;
+        font-weight: 600;
+        font-size: 1rem;
+        background-color: #3b82f6;
+        color: white;
+        transition: all 0.2s;
+        white-space: nowrap;
     }
 
-    .add-btn { background-color: #007bff; color: white; }
-    .add-btn:hover { background-color: #0056b3; }
+    .add-btn:hover:not(:disabled) {
+        background-color: #2563eb;
+    }
+
+    .add-btn:disabled {
+        background-color: #e5e7eb;
+        color: #9ca3af;
+        cursor: not-allowed;
+    }
 
     .error-message {
         color: #dc3545;
@@ -157,27 +222,48 @@
     }
 
     li {
-        background-color: #f8f9fa;
-        border: 1px solid #e9ecef;
-        border-radius: 4px;
-        padding: 0.5rem;
+        background-color: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 0.75rem 1rem;
     }
 
     .view-mode, .edit-mode {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 0.75rem;
     }
 
     .item-name {
         flex-grow: 1;
         font-weight: 500;
+        color: #374151;
     }
 
-    .actions { display: flex; gap: 0.25rem; }
+    .actions { 
+        display: flex; 
+        gap: 0.5rem; 
+    }
 
-    .edit-btn { background-color: #ffc107; color: #212529; padding: 0.25rem 0.5rem; }
-    .delete-btn { background-color: #dc3545; color: white; padding: 0.25rem 0.5rem; }
-    .save-btn { background-color: #28a745; color: white; }
-    .cancel-btn { background-color: #6c757d; color: white; }
+    .edit-btn, .delete-btn, .save-btn, .cancel-btn {
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.85rem;
+        padding: 0.35rem 0.6rem;
+        transition: background-color 0.2s;
+    }
+
+    .edit-btn { background-color: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; }
+    .edit-btn:hover { background-color: #e5e7eb; }
+
+    .delete-btn { background-color: transparent; color: #ef4444; font-size: 1rem; padding: 0.2rem 0.5rem; }
+    .delete-btn:hover { background-color: #fef2f2; }
+
+    .save-btn { background-color: #10b981; color: white; }
+    .save-btn:hover { background-color: #059669; }
+
+    .cancel-btn { background-color: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; }
+    .cancel-btn:hover { background-color: #e5e7eb; }
 </style>

@@ -4,7 +4,10 @@
     // 1. Props (Updated to accept the flexible ScoreValue)
     export let value: ScoreValue | undefined = undefined; 
     export let criterionName: string; 
-    export let optionName: string;    
+    export let optionName: string; 
+    
+    // NEW: The optional text-to-math dictionary
+    export let qualitativeScale: { label: string, value: number }[] | undefined = undefined;
     // The dispatcher function passed down from +page.svelte
     export let onUpdate: ((detail: { value: ScoreValue | undefined }) => void) = () => {};
 
@@ -32,7 +35,9 @@
 
     // 5. RESTORED & UPDATED: Your empty warning logic! 
     // We now check our string displayValue instead of the raw number
-    $: isEmpty = displayValue.trim() === '';
+    $: isEmpty = (qualitativeScale && qualitativeScale.length > 0)
+        ? (value === undefined || value === null) 
+        : (displayValue.trim() === '');
 
     // TEMPORARY DEBUG: Calculate the average for visual confirmation
     $: debugAverage = (typeof value === 'object' && value !== null) 
@@ -98,22 +103,51 @@
             (event.target as HTMLElement).blur(); 
         }
     }
+    // --- NEW: DROPDOWN LOGIC ---
+    function handleSelectChange(event: Event) {
+        const target = event.target as HTMLSelectElement;
+        const selectedValue = target.value;
+        
+        if (selectedValue === '') {
+            onUpdate({ value: undefined });
+        } else {
+            // Silently convert their text choice back into the math engine's number!
+            onUpdate({ value: Number(selectedValue) });
+        }
+    }
+
 </script>
 
 <div class="cell-wrapper relative-container">
     <label class="sr-only" for={inputId}>Enter {criterionName} for {optionName}</label>
     
-    <input 
-        id={inputId}
-        type="text" 
-        placeholder="0.0 or 10-20" 
-        bind:value={displayValue} 
-        on:input={handleInput} 
-        on:blur={handleBlur}
-        on:keydown={handleKeyDown}
-        class="data-input"
-        class:empty-cell={isEmpty}
-    />
+    {#if qualitativeScale && qualitativeScale.length > 0}
+        <select
+            id={inputId}
+            class="data-select"
+            class:empty-cell={isEmpty}
+            on:change={handleSelectChange}
+        >
+            <option value="" selected={value === undefined || value === null}>-- Select --</option>
+            {#each qualitativeScale as scaleItem}
+                <option value={scaleItem.value} selected={value === scaleItem.value}>
+                    {scaleItem.label}
+                </option>
+            {/each}
+        </select>
+    {:else}
+        <input 
+            id={inputId}
+            type="text" 
+            placeholder="0.0 or 10-20" 
+            bind:value={displayValue} 
+            on:input={handleInput} 
+            on:blur={handleBlur}
+            on:keydown={handleKeyDown}
+            class="data-input"
+            class:empty-cell={isEmpty}
+        />
+    {/if}
 
     {#if debugAverage !== null}
         <span class="debug-badge">avg: {debugAverage}</span>
@@ -174,5 +208,15 @@
         color: #ef4444; /* Bright red so we know it's temporary */
         font-weight: bold;
         pointer-events: none; /* Prevents it from blocking clicks */
+    }
+
+    .data-select {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        font-size: 0.875rem;
+        background-color: #ffffff;
+        cursor: pointer;
     }
 </style>

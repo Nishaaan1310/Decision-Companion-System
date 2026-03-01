@@ -132,7 +132,7 @@ export function calculateWsmScores(
                     disqualificationReason = `Failed min requirement for ${crit.name} (Value: ${expectedValue})`;
                 }
             }
-            const normalizedValue = normalizedData[opt.id][crit.id] || 0;
+            const normalizedValue = normalizedData[opt.id]?.[crit.id] || 0;
             
             // The core WSM equation
             finalScore += (normalizedValue * weights[index]);

@@ -1,5 +1,4 @@
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
 
     // 1. Component Props (Data passed down from the parent)
     export let criterionA: string; // The human-readable name (e.g., "Cost")
@@ -17,12 +16,10 @@
     export let sliderPosition: number = 0; 
 
 
+    // NEW: The standard modern Svelte prop for passing events
+    export let onChange: (detail: { idA: string, idB: string, favored: string, value: number }) => void;
+
     // NEW: The Reverse Translation Engine!
-    // When the page loads and LocalStorage hydrates these saved props, 
-    // instantly calculate where the visual slider handle should snap to.
-    
-    // 3. Setup the Svelte event dispatcher
-    const dispatch = createEventDispatcher();
 
 
     $: {
@@ -53,13 +50,15 @@
             ahpValue = 1;
         }
 
-        // Broadcast the cleaned mathematical data up to the global state
-        dispatch('change', { 
-            idA: idA, 
-            idB: idB, 
-            favored: favoredId,
-            value: ahpValue 
-        });
+        // Execute the callback function passed down from the parent
+        if (onChange) {
+            onChange({ 
+                idA: idA, 
+                idB: idB, 
+                favored: favoredId,
+                value: ahpValue 
+            });
+        }
     }
 </script>
 

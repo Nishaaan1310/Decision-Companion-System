@@ -1,5 +1,11 @@
 // src/lib/stores/decisionStore.ts
-import { writable } from 'svelte/store';
+
+import { writable, derived } from 'svelte/store';
+
+// NEW: Import your pure math functions (Ensure these paths match your actual files!)
+import { buildAhpMatrix, calculateWeights, calculateConsistencyRatio } from '$lib/engine/ahp';
+import { normalizeScores } from '$lib/engine/wsm';
+import { calculateWsmScores } from '$lib/engine/wsm';
 
 // 1. NEW: Define a flexible type that can handle both exact numbers and uncertain ranges
 export type ScoreValue = number | { min: number; max: number };
@@ -259,3 +265,68 @@ export function resetAllData() {
     comparisonsStore.set({});
     optionsStore.set([]);
 }
+
+
+// ============================================================================
+// --- DERIVED STORES: THE AUTOMATED MATH PIPELINES ---
+// ============================================================================
+
+// Pipeline 1: The AHP Engine
+// Listens to Criteria and Sliders. Automatically outputs the percentage weights.
+
+// Pipeline 1a: The Matrix Engine
+// Listens to raw data and outputs the 2D mathematical matrix
+export const ahpMatrixStore = derived(
+    [criteriaStore, comparisonsStore],
+    ([$criteria, $comparisons]) => {
+        if ($criteria.length === 0) return [];
+        const criteriaIds = $criteria.map(c => c.id);
+        return buildAhpMatrix(criteriaIds, $comparisons);
+    }
+);
+
+// Pipeline 1b: The Weights Engine
+// Listens ONLY to the Matrix Store and outputs the decimal weights
+export const ahpWeightsStore = derived(
+    [ahpMatrixStore],
+    ([$ahpMatrix]) => {
+        if ($ahpMatrix.length === 0) return [];
+        return calculateWeights($ahpMatrix);
+    }
+);
+
+// Pipeline 1c: The Consistency Engine
+// Listens to BOTH the Matrix and the Weights to calculate the CR
+export const consistencyRatioStore = derived(
+    [ahpMatrixStore, ahpWeightsStore],
+    ([$ahpMatrix, $ahpWeights]) => {
+        if ($ahpMatrix.length === 0 || $ahpWeights.length === 0) return 0;
+        return calculateConsistencyRatio($ahpMatrix, $ahpWeights);
+    }
+);
+
+// Pipeline 2: The Data Normalization Engine
+// Listens to Criteria and Options. Automatically converts raw inputs ($1500, ranges, etc.) into 0-1 scores.
+export const normalizedDataStore = derived(
+    [optionsStore, criteriaStore],
+    ([$options, $criteria]) => {
+        if ($options.length === 0 || $criteria.length === 0) return {};
+        // Run the min/max calculations in the background
+        return normalizeScores($options, $criteria);
+    }
+);
+
+// Pipeline 3: The Final Leaderboard Engine
+// Listens to EVERYTHING. Combines the normalized data, the AHP weights, and the dealbreakers.
+export const leaderboardStore = derived(
+    [optionsStore, criteriaStore, normalizedDataStore, ahpWeightsStore],
+    ([$options, $criteria, $normalizedData, $ahpWeights]) => {
+        // Safety check: Don't run the math if the framework is empty
+        if ($options.length === 0 || $criteria.length === 0 || $ahpWeights.length === 0) {
+            return [];
+        }
+        
+        // Return the final RankedOption array (with dealbreakers processed!)
+        return calculateWsmScores($options, $criteria, $normalizedData, $ahpWeights);
+    }
+);

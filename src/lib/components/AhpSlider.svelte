@@ -7,13 +7,33 @@
     export let idA: string;        // The internal ID (e.g., "c1")
     export let idB: string;        // The internal ID (e.g., "c2")
 
+
+    // NEW: Receive the saved AHP math from the global store
+    export let savedValue: number = 1;
+    export let savedFavored: string | null = null;
+
     // 2. The internal state of the HTML slider (-8 to +8)
     // 0 represents the exact center (Equal Importance)
     export let sliderPosition: number = 0; 
 
+
+    // NEW: The Reverse Translation Engine!
+    // When the page loads and LocalStorage hydrates these saved props, 
+    // instantly calculate where the visual slider handle should snap to.
+    
     // 3. Setup the Svelte event dispatcher
     const dispatch = createEventDispatcher();
 
+
+    $: {
+        if (savedValue === 1) {
+            sliderPosition = 0; // Dead center
+        } else if (savedFavored === idA) {
+            sliderPosition = -(savedValue - 1); // Snap left
+        } else if (savedFavored === idB) {
+            sliderPosition = savedValue - 1; // Snap right
+        }
+    }
     // 4. The Translation Engine: Converts slider position to AHP math
     function handleSlide() {
         let ahpValue = 1;

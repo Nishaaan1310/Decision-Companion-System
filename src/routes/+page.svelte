@@ -51,6 +51,26 @@
         $comparisonsStore[`${idA}_${idB}`] = finalMathValue;
     }
 
+    // NEW: Helper to reverse-engineer the stored fraction back into Slider format
+    function getSavedSliderProps(idA: string, idB: string) {
+        // Look up the raw math in your global memory store
+        const storedMath = $comparisonsStore[`${idA}_${idB}`];
+
+        // If it's missing or dead center
+        if (!storedMath || storedMath === 1) {
+            return { value: 1, favored: null };
+        } 
+        
+        // If Criterion A won, it's a clean whole number > 1
+        if (storedMath > 1) {
+            return { value: storedMath, favored: idA };
+        } 
+        
+        // If Criterion B won, it's a decimal < 1. 
+        // We flip it and use Math.round to fix JavaScript floating-point errors!
+        return { value: Math.round(1 / storedMath), favored: idB };
+    }
+
 
     // ==========================================
     // NEW LOGIC ADDITIONS BELOW
@@ -147,11 +167,17 @@
 
     <section class="sliders-section">
         {#each pairs as pair}
+            {@const savedProps = getSavedSliderProps(pair.idA, pair.idB)}
+
             <AhpSlider 
                 criterionA={pair.nameA} 
                 criterionB={pair.nameB} 
                 idA={pair.idA} 
                 idB={pair.idB} 
+                
+                savedValue={savedProps.value}
+                savedFavored={savedProps.favored}
+                
                 on:change={handleSliderChange} 
             />
         {/each}

@@ -1,6 +1,10 @@
 // src/lib/stores/decisionStore.ts
 import { writable } from 'svelte/store';
 
+// 1. NEW: Define a flexible type that can handle both exact numbers and uncertain ranges
+export type ScoreValue = number | { min: number; max: number };
+
+
 // --- Interfaces (The Data Contracts) ---
 
 export interface Criterion {
@@ -14,11 +18,11 @@ export interface ComparisonMap {
     [key: string]: number;
 }
 
+// 2. UPDATED: Apply the new type to the Option interface
 export interface Option {
     id: string;
     name: string;
-    // A dictionary mapping a criterion ID to a raw number
-    scores: Record<string, number>; 
+    scores: Record<string, ScoreValue>; // Changed from strictly 'number'
 }
 
 // --- GLOBAL MEMORY STORES ---
@@ -196,7 +200,9 @@ export function updateOptionName(id: string, newName: string) {
 }
 
 // Action: Update a specific raw score for an option
-export function updateOptionScore(optionId: string, criterionId: string, newValue: number | undefined) {
+
+// UPDATED: 'newValue' now accepts our flexible ScoreValue type
+export function updateOptionScore(optionId: string, criterionId: string, newValue: ScoreValue | undefined) {
     optionsStore.update(options => {
         // Map over the array and only modify the specific option that matches the ID
         return options.map(opt => {

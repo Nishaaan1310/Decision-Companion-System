@@ -7,6 +7,29 @@ import type { Option, Criterion } from '../stores/decisionStore';
  * @param criteria - The array of criteria to check the isCost polarity flag.
  * @returns A dictionary mapping option IDs to their new normalized score dictionaries.
  */
+
+// NEW: A helper type to match our store
+type ScoreValue = number | { min: number; max: number };
+
+/**
+ * Translates a flexible ScoreValue (number or range) into a single 
+ * mathematical expected value for the WSM engine.
+ */
+export function getExpectedValue(val: ScoreValue | undefined): number | undefined {
+    if (val === undefined || val === null) {
+        return undefined;
+    }
+    
+    // If it's already a standard number, just return it
+    if (typeof val === 'number') {
+        return val;
+    }
+    
+    // If it's a range object, calculate the expected value (the average)
+    return (val.min + val.max) / 2;
+}
+
+
 export function normalizeScores(options: Option[], criteria: Criterion[]): Record<string, Record<string, number>> {
     const normalizedData: Record<string, Record<string, number>> = {};
 
@@ -16,36 +39,41 @@ export function normalizeScores(options: Option[], criteria: Criterion[]): Recor
     });
 
     criteria.forEach(crit => {
-        // Step 1: Extract ONLY the valid numbers typed by the user
-        const validScores = options
-            .map(opt => opt.scores[crit.id])
-            .filter(val => val !== undefined && val !== null) as number[];
+        // STEP 1: Safely extract valid numbers to calculate min and max
+        const validExpectedValues: number[] = [];
 
-        // Step 2: Safely calculate min and max from valid data only
-        let maxScore = 0;
-        let minScore = 0;
-        if (validScores.length > 0) {
-            maxScore = Math.max(...validScores);
-            minScore = Math.min(...validScores);
-        }
+        // 2. THE FIX: Find the min and max using the EXPECTED VALUE, not the raw object
+        options.forEach(opt => {
+            const expectedValue = getExpectedValue(opt.scores[crit.id]);
+            // Ensure we only include actual numbers, skipping undefined or missing data
+            if (expectedValue !== undefined && expectedValue !== null && !isNaN(expectedValue)) {
+                validExpectedValues.push(expectedValue);
+            }
+        });
+
+        // Calculate the absolute max and min for this specific column
+        const minScore = validExpectedValues.length > 0 ? Math.min(...validExpectedValues) : 0;
+        const maxScore = validExpectedValues.length > 0 ? Math.max(...validExpectedValues) : 0;
 
         // Step 3: Apply normalization rules
+        // 3. Calculate the 0-to-1 score using the Expected Value
         options.forEach(opt => {
-            const rawValue = opt.scores[crit.id];
+            const expectedValue = getExpectedValue(opt.scores[crit.id]);
+
             let normalizedValue = 0;
 
-            if (rawValue === undefined || rawValue === null) {
-                // THE FAILSAFE: Missing data gets an automatic 0 (worst possible outcome)
+            if (expectedValue === undefined || expectedValue === null || isNaN(expectedValue)) {
+                // YOUR RESTORED FAILSAFE: Missing data gets an automatic 0 (worst possible outcome)
                 normalizedValue = 0;
             } else if (maxScore === minScore) {
-                // Failsafe: If all valid entries are identical, they all tie perfectly
+                // YOUR RESTORED FAILSAFE: If all valid entries are identical, they all tie perfectly
                 normalizedValue = 1;
             } else if (crit.isCost) {
-                // Cost metric (Lower is better)
-                normalizedValue = (maxScore - rawValue) / (maxScore - minScore);
+                // YOUR RESTORED MATH: Cost metric (Lower is better)
+                normalizedValue = (maxScore - expectedValue) / (maxScore - minScore);
             } else {
-                // Benefit metric (Higher is better)
-                normalizedValue = (rawValue - minScore) / (maxScore - minScore);
+                // YOUR RESTORED MATH: Benefit metric (Higher is better)
+                normalizedValue = (expectedValue - minScore) / (maxScore - minScore);
             }
 
             normalizedData[opt.id][crit.id] = normalizedValue;

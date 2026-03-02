@@ -2,16 +2,15 @@
 
 import { writable, derived } from 'svelte/store';
 
-// NEW: Import your pure math functions (Ensure these paths match your actual files!)
+// Core mathematical engines
 import { buildAhpMatrix, calculateWeights, calculateConsistencyRatio } from '$lib/engine/ahp';
 import { normalizeScores } from '$lib/engine/wsm';
 import { calculateWsmScores } from '$lib/engine/wsm';
 
-// 1. NEW: Define a flexible type that can handle both exact numbers and uncertain ranges
+// Flexible scoring type supporting exact numbers and uncertainty ranges
 export type ScoreValue = number | { min: number; max: number };
 
-
-// --- Interfaces (The Data Contracts) ---
+// --- Data Contracts ---
 
 
 export interface QualitativeLabel {
@@ -24,11 +23,11 @@ export interface Criterion {
     name: string;
     isCost: boolean;
     
-    // NEW: Phase 3 Dealbreaker (Hard Constraints)
+    // Hard Constraints (Dealbreakers)
     hasDealbreaker?: boolean; 
     dealbreakerType?: 'min' | 'max'; 
     dealbreakerValue?: number;
-    // NEW: Optional scale for subjective criteria (Text-to-Math)
+    // Optional text-to-math scale for subjective criteria
     qualitativeScale?: QualitativeLabel[];
 }
 
@@ -37,28 +36,28 @@ export interface ComparisonMap {
     [key: string]: number;
 }
 
-// 2. UPDATED: Apply the new type to the Option interface
+// Option Definition
 export interface Option {
     id: string;
     name: string;
-    scores: Record<string, ScoreValue>; // Changed from strictly 'number'
+    scores: Record<string, ScoreValue>;
 }
 
-// --- GLOBAL MEMORY STORES ---
+// --- Persistent Data Stores ---
 
-// 1. Store for the criteria framework
+// Criteria configuration framework
 export const criteriaStore = createPersistentStore<Criterion[]>(
     'decision_criteria', 
     []
 );
 
-// 2. Store for the AHP pairwise slider values
+// AHP pairwise comparison matrix
 export const comparisonsStore = createPersistentStore<Record<string, number>>(
     'decision_comparisons', 
     {}
 );
 
-// 3. Store for the raw WSM data matrix
+// Raw option evaluations
 export const optionsStore = createPersistentStore<Option[]>(
     'decision_options', 
     []
@@ -67,10 +66,10 @@ export const optionsStore = createPersistentStore<Option[]>(
 // --- UTILITIES: LocalStorage Factory ---
 
 function createPersistentStore<T>(key: string, initialValue: T) {
-    // 1. Handle SSR Gotcha: Check if we are actually in the browser
+    // Validate browser environment
     const isBrowser = typeof window !== 'undefined';
     
-    // 2. The Load Phase: Try to get existing data from the browser's memory
+    // Load state from local storage
     let storedValue = initialValue;
     if (isBrowser) {
         try {
@@ -80,15 +79,15 @@ function createPersistentStore<T>(key: string, initialValue: T) {
             }
         } catch (error) {
             console.error(`Error reading ${key} from localStorage:`, error);
-            // NEW: Clean up the corrupted data so it doesn't linger
+            // Remove corrupted data
             localStorage.removeItem(key);
         }
     }
 
-    // 3. Create a standard Svelte store with whatever data we found (or the empty default)
+    // Initialize writable store
     const store = writable<T>(storedValue);
 
-    // 4. The Save Phase: Listen to every single change and silently write to disk
+    // Persist state changes
     if (isBrowser) {
         store.subscribe((value) => {
             try {
@@ -99,17 +98,12 @@ function createPersistentStore<T>(key: string, initialValue: T) {
         });
     }
 
-    // 5. The Sync Phase: Listen for changes made by other tabs/windows
+    // Synchronize state across tabs
     if (isBrowser) {
         window.addEventListener('storage', (event) => {
-            // Only react if the exact localStorage key we care about was changed
             if (event.key === key) {
                 try {
-                    // If the other tab deleted the data, fall back to initialValue
-                    // Otherwise, parse the brand new JSON string sent by the browser
                     const syncedValue = event.newValue ? JSON.parse(event.newValue) : initialValue;
-                    
-                    // Force this tab's Svelte store to immediately adopt the new data
                     store.set(syncedValue);
                 } catch (error) {
                     console.error(`Error syncing ${key} from another tab:`, error);
@@ -118,7 +112,7 @@ function createPersistentStore<T>(key: string, initialValue: T) {
         });
     }
 
-    // 6. Return the exact same API as a standard Svelte store so the rest of the app doesn't break
+    // Expose standard store API
     return {
         subscribe: store.subscribe,
         set: store.set,
@@ -126,22 +120,20 @@ function createPersistentStore<T>(key: string, initialValue: T) {
     };
 }
 
-// --- ACTIONS: Phase 2 Dynamic Framework Logic ---
+// --- Store Actions ---
 
-// Utility to generate a safe, unique ID for new criteria
+// Safely generate a unique identifier
 function generateId(): string {
     return Math.random().toString(36).substring(2, 9);
 }
 
-// Action: Safely inject a new criterion into the global memory
+// Add a new criterion to the store
 export function addCriterion(
     name: string, 
     isCost: boolean, 
-    // NEW: Optional parameters for setting dealbreakers right at creation
     hasDealbreaker: boolean = false,
     dealbreakerType?: 'min' | 'max',
     dealbreakerValue?: number,
-    // NEW: Optional scale parameter
     qualitativeScale?: QualitativeLabel[]
 ) {
     criteriaStore.update(currentCriteria => {
@@ -149,11 +141,9 @@ export function addCriterion(
             id: `crit_${generateId()}`,
             name: name.trim(),
             isCost: isCost,
-            // NEW: Save the dealbreaker config immediately
             hasDealbreaker: hasDealbreaker,
             dealbreakerType: dealbreakerType,
             dealbreakerValue: dealbreakerValue,
-            // NEW: Save the scale if it exists
             qualitativeScale: qualitativeScale
         };
         // Return a brand new array to trigger Svelte's reactivity
@@ -161,17 +151,16 @@ export function addCriterion(
     });
 }
 
-// Action: The Cascading Deletion Engine
+// Cascading deletion of a criterion
 export function removeCriterion(targetId: string) {
-    // 1. Remove the physical column/row from the Criteria framework
+    // Remove the physical column/row from the Criteria framework
     criteriaStore.update(criteria => criteria.filter(c => c.id !== targetId));
 
-    // 2. Cascade Delete: Sweep the AHP matrix memory
+    // Clean up pairwise comparison data
     comparisonsStore.update(comparisons => {
         const cleanedComparisons = { ...comparisons };
         for (const key in cleanedComparisons) {
-            // Our AHP keys look like "crit_123_crit_456". 
-            // If the deleted ID is anywhere in this string, destroy the slider data.
+            // Remove associated AHP slider keys (format: "idA_idB")
             if (key.includes(targetId)) {
                 delete cleanedComparisons[key];
             }
@@ -179,25 +168,21 @@ export function removeCriterion(targetId: string) {
         return cleanedComparisons;
     });
 
-    // 3. Cascade Delete: Sweep the WSM grid memory
+    // Clean up option score arrays
     optionsStore.update(options => {
         return options.map(option => {
             const cleanedScores = { ...option.scores };
-            // Delete the exact math cell associated with this criterion column
             delete cleanedScores[targetId];
-            
-            // Rebuild the option object with the cleaned dictionary
             return { ...option, scores: cleanedScores };
         });
     });
 }
 
-// Action: Update an existing criterion's name AND polarity
+// Update an existing criterion's name and polarity
 export function updateCriterion(id: string, newName: string, newIsCost: boolean) {
     criteriaStore.update(criteria => 
         criteria.map(c => {
             if (c.id === id) {
-                // NEW: We now overwrite both 'name' and 'isCost'
                 return { ...c, name: newName, isCost: newIsCost };
             }
             return c;
@@ -237,17 +222,15 @@ export function updateCriterionScale(id: string, qualitativeScale?: QualitativeL
     );
 }
 
-// --- OPTION CRUD ACTIONS ---
+// --- Option Store Actions ---
 
-// Action: Add a custom option
 export function addOption(name: string) {
     optionsStore.update(options => {
-        const newId = crypto.randomUUID(); // Generate a unique ID
+        const newId = crypto.randomUUID();
         return [...options, { id: newId, name: name, scores: {} }];
     });
 }
 
-// Action: Remove a specific option by its ID
 export function removeOption(id: string) {
     optionsStore.update(options => options.filter(opt => opt.id !== id));
 }
@@ -255,9 +238,7 @@ export function removeOption(id: string) {
 export function updateOptionName(id: string, newName: string) {
     optionsStore.update(options => {
         return options.map(opt => {
-            // Find the exact option by ID
             if (opt.id === id) {
-                // Return a new object with the updated name, keeping the existing scores intact
                 return { ...opt, name: newName };
             }
             return opt;
@@ -265,9 +246,7 @@ export function updateOptionName(id: string, newName: string) {
     });
 }
 
-// Action: Update a specific raw score for an option
-
-// UPDATED: 'newValue' now accepts our flexible ScoreValue type
+// Update an option's specific criterion score (supports ranges and scalars)
 export function updateOptionScore(optionId: string, criterionId: string, newValue: ScoreValue | undefined) {
     optionsStore.update(options => {
         // Map over the array and only modify the specific option that matches the ID
@@ -304,11 +283,9 @@ export function resetAllData() {
 // --- DERIVED STORES: THE AUTOMATED MATH PIPELINES ---
 // ============================================================================
 
-// Pipeline 1: The AHP Engine
-// Listens to Criteria and Sliders. Automatically outputs the percentage weights.
+// AHP Weight Calculation Pipeline
 
-// Pipeline 1a: The Matrix Engine
-// Listens to raw data and outputs the 2D mathematical matrix
+// Pairwise comparison matrix derived from user ratings
 export const ahpMatrixStore = derived(
     [criteriaStore, comparisonsStore],
     ([$criteria, $comparisons]) => {
@@ -318,8 +295,7 @@ export const ahpMatrixStore = derived(
     }
 );
 
-// Pipeline 1b: The Weights Engine
-// Listens ONLY to the Matrix Store and outputs the decimal weights
+// Normalized weights generated from the AHP matrix
 export const ahpWeightsStore = derived(
     [ahpMatrixStore],
     ([$ahpMatrix]) => {
@@ -328,8 +304,7 @@ export const ahpWeightsStore = derived(
     }
 );
 
-// Pipeline 1c: The Consistency Engine
-// Listens to BOTH the Matrix and the Weights to calculate the CR
+// Consistency ratio validator
 export const consistencyRatioStore = derived(
     [ahpMatrixStore, ahpWeightsStore],
     ([$ahpMatrix, $ahpWeights]) => {
@@ -338,28 +313,25 @@ export const consistencyRatioStore = derived(
     }
 );
 
-// Pipeline 2: The Data Normalization Engine
-// Listens to Criteria and Options. Automatically converts raw inputs ($1500, ranges, etc.) into 0-1 scores.
+// Data Normalization Pipeline
 export const normalizedDataStore = derived(
     [optionsStore, criteriaStore],
     ([$options, $criteria]) => {
         if ($options.length === 0 || $criteria.length === 0) return {};
-        // Run the min/max calculations in the background
         return normalizeScores($options, $criteria);
     }
 );
 
-// Pipeline 3: The Final Leaderboard Engine
-// Listens to EVERYTHING. Combines the normalized data, the AHP weights, and the dealbreakers.
+// Final WSM Leaderboard Pipeline
 export const leaderboardStore = derived(
     [optionsStore, criteriaStore, normalizedDataStore, ahpWeightsStore],
     ([$options, $criteria, $normalizedData, $ahpWeights]) => {
-        // Safety check: Don't run the math if the framework is empty
+        // Prevent evaluation if the framework or weight calculations are incomplete
         if ($options.length === 0 || $criteria.length === 0 || $ahpWeights.length === 0) {
             return [];
         }
         
-        // Return the final RankedOption array (with dealbreakers processed!)
+        // Output the final RankedOption array
         return calculateWsmScores($options, $criteria, $normalizedData, $ahpWeights);
     }
 );

@@ -1,29 +1,30 @@
 <script lang="ts">
-    // 1. Import the store to read the current list, and the actions to modify it
+    // Store imports and actions
     import { criteriaStore, addCriterion, removeCriterion, updateCriterion, updateCriterionDealbreaker, updateCriterionScale } from '$lib/stores/decisionStore';
     import type { Criterion } from '$lib/stores/decisionStore';
 
-    // 2. Local state to track what the user is currently typing
+    // Local input state
     let newCriterionName = '';
-    // 3. Local state to track the polarity toggle (defaults to Benefit/false)
+    // Polarity toggle state (default: Benefit)
     let isCost = false;
 
-    // NEW: Dealbreaker state for the creation form
+    // Dealbreaker creation state
     let newHasDealbreaker: boolean = false;
     let newDealbreakerType: 'min' | 'max' = 'max';
     let newDealbreakerValue: number | string = '';
 
-    // --- NEW: Local State for Inline Editing ---
+    // Inline editing state
     let editingId: string | null = null;
     let editName: string = '';
-    // --- NEW: Local State for Dealbreaker Editing ---
+    
+    // Dealbreaker editing state
     let editHasDealbreaker: boolean = false;
     let editDealbreakerType: 'min' | 'max' = 'max';
-    let editDealbreakerValue: number | string = ''; // string allows the input box to be completely empty
+    let editDealbreakerValue: number | string = ''; // Allows empty input box
     let editIsCost: boolean = false;
     let editIsSubjective: boolean = false;
 
-    // NEW: Subjective Scale state for the creation form
+    // Subjective scale creation state
     let newIsSubjective: boolean = false;
     let defaultScale = [
         { label: 'Poor', value: 1 },
@@ -33,10 +34,10 @@
         { label: 'Excellent', value: 5 }
     ];
 
-    // NEW: Local state for displaying validation errors
+    // Validation error state
     let errorMessage = '';
 
-    // NEW: The core validation engine (case-insensitive)
+    // Duplicate validation (case-insensitive)
     function isDuplicate(nameToCheck: string, ignoreId: string | null = null): boolean {
         const normalized = nameToCheck.trim().toLowerCase();
         return $criteriaStore.some(
@@ -45,67 +46,71 @@
     }
     
 
-    // 4. The function triggered when the user clicks the "Add" button
+    // Add criterion handler
     function handleAdd() {
-        errorMessage = ''; // Clear previous errors
+        errorMessage = ''; // Reset error state
         const trimmed = newCriterionName.trim();
         
         if (trimmed !== '') {
-            // Check the gate
+            // Validate duplicate entry
             if (isDuplicate(trimmed)) {
                 errorMessage = `A criterion named "${trimmed}" already exists.`;
-                return; // Stop execution, do not add to store
+                return; // Cancel save operation
             }
 
-            // NEW: Parse the dealbreaker value safely
+            // Parse dealbreaker value
             const parsedVal = newDealbreakerValue === '' ? undefined : Number(newDealbreakerValue);
-            // NEW: Determine if we should pass the default scale
+            // Determine subjective scale
             const scaleToSave = newIsSubjective ? defaultScale : undefined;
 
-            // NEW: Pass all 5 arguments to the updated store action
+            // Persist new criterion
             addCriterion(trimmed, isCost, newHasDealbreaker, newDealbreakerType, parsedVal, scaleToSave);
             
-            // NEW: Reset the entire form to clean defaults after successful addition
+            // Reset form state
             newCriterionName = '';
             isCost = false;
             newHasDealbreaker = false;
             newDealbreakerType = 'max';
             newDealbreakerValue = '';
-            // NEW: Reset the subjective toggle
+            // Reset subjective toggle
             newIsSubjective = false;
         }
     }
 
-    // --- NEW: Edit Handlers ---
+    // Edit mode handlers
     function startEdit(criterion: Criterion) {
-        editingId = criterion.id; // Lock the UI into edit mode for this specific row
-        editName = criterion.name; // Pre-fill the input box with the current name
-        editIsCost = criterion.isCost; // Grab the existing Cost/Benefit status
-        // Load dealbreaker data (with safe fallbacks if it's undefined)
+        editingId = criterion.id; // Lock UI for editing
+        editName = criterion.name; // Pre-fill input
+        editIsCost = criterion.isCost; // Load polarity status
+        
+        // Load existing dealbreaker data
         editHasDealbreaker = criterion.hasDealbreaker || false;
-        // Smart default: If it's a Cost, they probably want a 'max' limit. If Benefit, a 'min' limit.
+        // Intelligent dealbreaker type default based on polarity
         editDealbreakerType = criterion.dealbreakerType || (criterion.isCost ? 'max' : 'min');
         editDealbreakerValue = criterion.dealbreakerValue ?? '';
-        // NEW: Load the subjective state (true if the scale exists and has items)
+        
+        // Load subjective scale state
         editIsSubjective = !!(criterion.qualitativeScale && criterion.qualitativeScale.length > 0);
     }
 
     function saveEdit() {
-        errorMessage = ''; // Clear previous errors
+        errorMessage = ''; // Reset error state
         const trimmed = editName.trim();
 
         if (trimmed && editingId) {
-            // Check the gate (ignoring its own ID so saving without changes works)
+            // Validate against duplicates excluding self
             if (isDuplicate(trimmed, editingId)) {
                 errorMessage = `Name "${trimmed}" is already taken.`;
-                return; // Keep them in edit mode until they fix it
+                return; // Keep edit mode active on invalid input
             }
 
             updateCriterion(editingId, trimmed, editIsCost);
-            // 2. Parse and save the dealbreaker info safely
+            
+            // Parse and save dealbreaker config
             const parsedVal = editDealbreakerValue === '' ? undefined : Number(editDealbreakerValue);
             updateCriterionDealbreaker(editingId, editHasDealbreaker, editDealbreakerType, parsedVal);
-            // NEW: Save or remove the subjective scale
+            
+            // Save subjective scale config
             const scaleToSave = editIsSubjective ? defaultScale : undefined;
             updateCriterionScale(editingId, scaleToSave);
         }
@@ -113,7 +118,7 @@
     }
 
     function cancelEdit() {
-        errorMessage = ''; // Clear any errors generated while editing
+        errorMessage = ''; // Clear errors on cancel
         editingId = null; 
     }
     
@@ -333,7 +338,7 @@
         flex: 1;
         min-width: 200px;
     }
-    /* Standard utility for clean accessibility */
+    /* Accessibility utility */
     .sr-only {
         position: absolute;
         width: 1px;
@@ -372,7 +377,7 @@
     .add-btn:hover:not(:disabled) {
         background-color: #2563eb;
     }
-    /* Explicit locked/greyed out state to prevent redundant actions */
+    /* Disabled state styling */
     .add-btn:disabled {
         background-color: #e5e7eb;
         color: #9ca3af;
@@ -430,7 +435,7 @@
         background: #fef2f2;
     }
 
-    /* --- NEW EDIT MODE STYLES --- */
+    /* Edit mode styles */
     .read-mode, .edit-mode {
         display: flex;
         justify-content: space-between;
@@ -496,7 +501,7 @@
     }
 
     .limit-warning {
-        color: #b45309; /* Deep orange */
+        color: #b45309; /* Warning color */
         background-color: #fffbeb;
         padding: 0.75rem;
         border-radius: 6px;
@@ -508,13 +513,13 @@
     }
 
     .error-message {
-    color: #dc3545; /* Standard error red */
+    color: #dc3545; /* Error color */
     font-size: 0.85rem;
     margin-top: 0.5rem;
     font-weight: bold;
     }
 
-    /* NEW: Creation Dealbreaker Styles */
+    /* Creation Dealbreaker Styles */
    
 
     .dealbreaker-checkbox-label {
@@ -532,7 +537,7 @@
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        margin-left: 1.5rem; /* Indent slightly to show it belongs to the checkbox */
+        margin-left: 1.5rem; /* Indent subordinate fields */
         background-color: #f9fafb;
         padding: 0.75rem;
         border-radius: 6px;
@@ -571,7 +576,7 @@
         gap: 1rem;
     }
 
-    /* Make the input wrappers share the space nicely */
+    /* Distribute input wrapper space */
     .input-wrapper {
         flex: 1; 
         display: flex;
@@ -597,7 +602,7 @@
     }
 
     .form-submit-btn {
-        width: 100%; /* Makes the button full width to anchor the form */
+        width: 100%; /* Full width anchor button */
         padding: 0.75rem;
         font-size: 1rem;
         font-weight: 600;
@@ -632,7 +637,7 @@
         padding: 0.5rem 0.75rem;
         background-color: #f3f4f6;
         border-radius: 4px;
-        border-left: 3px solid #3b82f6; /* Blue accent to show it's info */
+        border-left: 3px solid #3b82f6; /* Info accent border */
     }
 
     .preview-text {

@@ -1,16 +1,17 @@
 
-# note: '-->' tag indicates response/suggestion from the AI where my answer was mostly "yes".
-#       no tag or '->' tag indicates my immediate response or queries to Ai on its response/ code output (that was more than a "yes").
- 
-#       '--->' indicates a number of quories done to fix a problem or find a solution.
-#       each query is seperated by a space, if there is no space, it means all the queris asked at once.
+###### note: 
+        
+        '-->' tag indicates response/suggestion from the AI where my answer was mostly "yes".
+        '->' tag or no tag indicates my immediate response or queries to Ai on its response/ code output (that was more than a "yes").
+        '--->' indicates a number of quories done to fix a problem or find a solution.
+        each query is seperated by a space, if there is no space, it means all the queries asked at once.
 
 
-# GOOGLE SEARCH
+### GOOGLE SEARCH
 
 how decision companion systems are created
 
-# GOOGLE GEMINI 3.1 prompts
+### GOOGLE GEMINI 3.1 prompts
 
 how does ai makes descision? what are the steps that leads to a decision. explain
 
@@ -265,6 +266,8 @@ wait can you pause this. i prefer making a descision change. currently our dealb
 ---> improved ui for the dealbreaker option
 
 ---> continued with the queries regarding Qualitative Data Mapping
+
+---> queries and codes regarding The Pareto Frontier (Value vs. Cost)
 
 # Other Response to AI outputs:
 

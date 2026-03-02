@@ -8,7 +8,7 @@ import type { Option, Criterion } from '../stores/decisionStore';
  * @returns A dictionary mapping option IDs to their new normalized score dictionaries.
  */
 
-// NEW: A helper type to match our store
+// Helper type to match the store structure
 type ScoreValue = number | { min: number; max: number };
 
 /**
@@ -39,10 +39,10 @@ export function normalizeScores(options: Option[], criteria: Criterion[]): Recor
     });
 
     criteria.forEach(crit => {
-        // STEP 1: Safely extract valid numbers to calculate min and max
+        // Safely extract valid expected values for normalization
         const validExpectedValues: number[] = [];
 
-        // 2. THE FIX: Find the min and max using the EXPECTED VALUE, not the raw object
+        // Calculate values using the expected value representations
         options.forEach(opt => {
             const expectedValue = getExpectedValue(opt.scores[crit.id]);
             // Ensure we only include actual numbers, skipping undefined or missing data
@@ -51,29 +51,27 @@ export function normalizeScores(options: Option[], criteria: Criterion[]): Recor
             }
         });
 
-        // Calculate the absolute max and min for this specific column
-        const minScore = validExpectedValues.length > 0 ? Math.min(...validExpectedValues) : 0;
+        // Calculate the absolute max for this specific column
         const maxScore = validExpectedValues.length > 0 ? Math.max(...validExpectedValues) : 0;
 
-        // Step 3: Apply normalization rules
-        // 3. Calculate the 0-to-1 score using the Expected Value
+        // Apply normalization rules
         options.forEach(opt => {
             const expectedValue = getExpectedValue(opt.scores[crit.id]);
 
             let normalizedValue = 0;
 
             if (expectedValue === undefined || expectedValue === null || isNaN(expectedValue)) {
-                // YOUR RESTORED FAILSAFE: Missing data gets an automatic 0 (worst possible outcome)
+                // Failsafe: Missing data receives an automatic 0
                 normalizedValue = 0;
-            } else if (maxScore === minScore) {
-                // YOUR RESTORED FAILSAFE: If all valid entries are identical, they all tie perfectly
-                normalizedValue = 1;
+            } else if (maxScore === 0) {
+                // Failsafe: Prevent division by zero if all options are 0
+                normalizedValue = 0; 
             } else if (crit.isCost) {
-                // YOUR RESTORED MATH: Cost metric (Lower is better)
-                normalizedValue = (maxScore - expectedValue) / (maxScore - minScore);
+                // Cost criteria emphasize lower values yielding higher normalized scores
+                normalizedValue = (maxScore - expectedValue) / maxScore;
             } else {
-                // YOUR RESTORED MATH: Benefit metric (Higher is better)
-                normalizedValue = (expectedValue - minScore) / (maxScore - minScore);
+                // Benefit math: Value / Max
+                normalizedValue = expectedValue / maxScore;
             }
 
             normalizedData[opt.id][crit.id] = normalizedValue;
@@ -87,9 +85,12 @@ export interface RankedOption {
     id: string;
     name: string;
     score: number;
-    // NEW: Disqualification tracking
+    // Disqualification tracking properties
     isDisqualified?: boolean;
     disqualificationReason?: string;
+    benefitScore: number; 
+    costScore: number;
+    valueRatio: number; // Efficiency ratio (Benefit / Cost)
 }
 
 /**
@@ -107,17 +108,19 @@ export function calculateWsmScores(
     weights: number[]
 ): RankedOption[] {
     
-    // Step 1: Calculate the composite score for each option
+    // Calculate the composite score for each option
     const results: RankedOption[] = options.map(opt => {
         let finalScore = 0;
         let isDisqualified = false;
         let disqualificationReason = '';
+        let benefitScore = 0; 
+        let costScore = 0;
 
         // Iterate through each criterion to perform the WSM math
         criteria.forEach((crit, index) => {
-            // --- NEW: THE SURVIVAL CHECK (Dealbreaker Interceptor) ---
+            // Evaluate hard constraints and dealbreakers
             if (!isDisqualified && crit.hasDealbreaker && crit.dealbreakerValue !== undefined && crit.dealbreakerValue !== null) {
-                // We use our Phase 3 helper to safely extract the raw number (or range average)
+                // Safely extract the expected numeric value
                 const expectedValue = getExpectedValue(opt.scores[crit.id]);
 
                 if (expectedValue === undefined || expectedValue === null || isNaN(expectedValue)) {
@@ -133,22 +136,34 @@ export function calculateWsmScores(
                 }
             }
             const normalizedValue = normalizedData[opt.id]?.[crit.id] || 0;
-            
+            const weightedValue = normalizedValue * weights[index];
             // The core WSM equation
-            finalScore += (normalizedValue * weights[index]);
+            finalScore += weightedValue;
+            // Categorize scores for value ratio calculations
+            if (crit.isCost) {
+                // Higher normalized cost indicates lower actual cost (greater efficiency)
+                costScore += weightedValue; 
+            } else {
+                benefitScore += weightedValue;
+            }
+            
         });
 
+        const valueRatio = (benefitScore + 0.1) * (costScore + 0.1);
         return {
             id: opt.id,
             name: opt.name,
             score: finalScore,
             isDisqualified,
-            disqualificationReason
+            disqualificationReason,
+            // Assign calculated efficiency metric parameters
+            benefitScore,
+            costScore,
+            valueRatio
         };
     });
 
-    // Step 2: Sort the final array descending (highest score is index 0)
-    // Step 2: Sort the final array (Disqualified options ALWAYS sink to the bottom)
+    // Sort the final array descending, pushing disqualified options to the bottom
     return results.sort((a, b) => {
         // If 'a' is disqualified but 'b' is not, 'b' wins automatically
         if (a.isDisqualified && !b.isDisqualified) return 1;
@@ -183,18 +198,33 @@ export function calculateItemizedContributions(
         return contributions;
     }
 
+    // Retrieve all option IDs for variance checking
+    const allOptionIds = Object.keys(normalizedData);
+
     // Loop through every criterion to calculate its exact slice of the pie
     criteriaIds.forEach((critId, index) => {
         const rawNormalized = normalizedData[optionId][critId] || 0;
         const weight = weights[index] || 0;
         
+        // Apply zero-variance filter
+        // Extract all scores across options for the current criterion
+        const allScoresForCrit = allOptionIds.map(id => normalizedData[id][critId] || 0);
+        
+        // Determine the score range
+        const maxScore = allScoresForCrit.length > 0 ? Math.max(...allScoresForCrit) : 0;
+        const minScore = allScoresForCrit.length > 0 ? Math.min(...allScoresForCrit) : 0;
+        
+        // If all scores are identical, the criterion provides no competitive advantage.
+        const isTieAcrossBoard = (maxScore === minScore);
+        const effectiveWeightedScore = isTieAcrossBoard ? 0 : (rawNormalized * weight);
+
         contributions.push({
             criterionId: critId,
-            weightedScore: rawNormalized * weight
+            weightedScore: effectiveWeightedScore
         });
     });
 
-    // Sort from highest contribution to lowest, so index 0 is always the "MVP" criterion
+    // Sort from highest contribution to lowest, so index 0 is always the true "MVP" differentiator
     return contributions.sort((a, b) => b.weightedScore - a.weightedScore);
 }
 
@@ -215,7 +245,7 @@ export function findDecidingFactor(
     normalizedData: Record<string, Record<string, number>>,
     weights: number[]
 ): ComparisonInsight | null {
-    // 1. Get the forensic breakdown for both options using our previous function
+    // Retrieve the itemized score contributions for both options
     const winnerMath = calculateItemizedContributions(winnerId, criteriaIds, normalizedData, weights);
     const runnerUpMath = calculateItemizedContributions(runnerUpId, criteriaIds, normalizedData, weights);
 
@@ -224,7 +254,7 @@ export function findDecidingFactor(
     let biggestAdvantage = -Infinity;
     let winningCriterion = '';
 
-    // 2. Loop through every criterion to find the biggest gap
+    // Identify the criterion with the largest positive score delta
     criteriaIds.forEach(critId => {
         const winnerScore = winnerMath.find(c => c.criterionId === critId)?.weightedScore || 0;
         const runnerUpScore = runnerUpMath.find(c => c.criterionId === critId)?.weightedScore || 0;
@@ -239,7 +269,7 @@ export function findDecidingFactor(
         }
     });
 
-    // 3. Failsafe: If for some reason the math is perfectly tied across the board
+    // Failsafe if no clear advantage is found
     if (!winningCriterion || biggestAdvantage <= 0) return null;
 
     return {

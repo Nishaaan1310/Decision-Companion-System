@@ -1,8 +1,8 @@
 <script lang="ts">
     import { criteriaStore, comparisonsStore, consistencyRatioStore, ahpWeightsStore } from '$lib/stores/decisionStore';
-    import AhpSlider from './AhpSlider.svelte'; // Make sure this path points to your slider!
+    import AhpSlider from './AhpSlider.svelte';
 
-    // 1. Generate the unique pairs A vs B whenever the criteria list changes
+    // Generate unique A vs B criterion pairs
     let pairs: { idA: string; idB: string; nameA: string; nameB: string }[] = [];
     
     $: {
@@ -19,7 +19,7 @@
         }
     }
 
-    // 2. The Slider Reverse-Engineering Engine (From our Phase 3 bug fix)
+    // Parse saved slider state or initialize default
     function getSavedSliderProps(idA: string, idB: string) {
         const storedMath = $comparisonsStore[`${idA}_${idB}`];
 
@@ -34,12 +34,12 @@
         return { value: Math.round(1 / storedMath), favored: idB };
     }
 
-    // 3. Catch the event from the child component and save to the global store
+    // Handle slider changes and update store
     function handleSliderChange(detail: { idA: string, idB: string, favored: string, value: number }) {
         const { idA, idB, favored, value } = detail;
         const finalMathValue = (favored === idA) ? value : (1 / value);
         
-        // Update the global store directly
+        // Update persistent store
         comparisonsStore.update(store => {
             store[`${idA}_${idB}`] = finalMathValue;
             return store;
@@ -118,7 +118,7 @@
         margin-bottom: 2rem;
     }
 
-    /* Live Weights Display */
+    /* Results panel styling */
     .results-panel {
         margin-top: 2rem;
         padding-top: 1.5rem;
@@ -133,7 +133,7 @@
 
     .weights-grid {
         display: grid;
-        /* Responsive grid: fits as many columns as possible before wrapping */
+        /* Responsive auto-fit grid */
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
         gap: 1rem;
         margin-bottom: 1.5rem;
@@ -160,10 +160,10 @@
     .weight-value {
         font-size: 1.25rem;
         font-weight: 700;
-        color: #2563eb; /* Primary blue to make the number pop */
+        color: #2563eb; /* Primary highlight color */
     }
 
-    /* Consistency Ratio Banners */
+    /* Validation Banners */
     .cr-warning {
         background-color: #fef2f2;
         color: #991b1b;

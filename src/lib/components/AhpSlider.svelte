@@ -1,25 +1,20 @@
 <script lang="ts">
 
-    // 1. Component Props (Data passed down from the parent)
-    export let criterionA: string; // The human-readable name (e.g., "Cost")
-    export let criterionB: string; // The human-readable name (e.g., "Speed")
-    export let idA: string;        // The internal ID (e.g., "c1")
-    export let idB: string;        // The internal ID (e.g., "c2")
+    // Component properties
+    export let criterionA: string; // Human-readable name
+    export let criterionB: string; // Human-readable name
+    export let idA: string;        // Internal ID
+    export let idB: string;        // Internal ID
 
-
-    // NEW: Receive the saved AHP math from the global store
+    // Persisted AHP data
     export let savedValue: number = 1;
     export let savedFavored: string | null = null;
 
-    // 2. The internal state of the HTML slider (-8 to +8)
-    // 0 represents the exact center (Equal Importance)
-    export let sliderPosition: number = 0; 
-
-
-    // NEW: The standard modern Svelte prop for passing events
+    // Change event dispatcher
     export let onChange: (detail: { idA: string, idB: string, favored: string, value: number }) => void;
 
-    // NEW: The Reverse Translation Engine!
+    // Internal slider state (-8 to +8, 0 = equal)
+    export let sliderPosition: number = 0;
 
 
     $: {
@@ -31,26 +26,25 @@
             sliderPosition = savedValue - 1; // Snap right
         }
     }
-    // 4. The Translation Engine: Converts slider position to AHP math
+    // Translation engine: slider position to AHP math
     function handleSlide() {
         let ahpValue = 1;
         let favoredId = idA; // Default to A
 
         if (sliderPosition < 0) {
-            // Moving left (negative numbers) means the user favors Criterion A
-            // Math.abs turns -4 into 4, then we add 1 to get an AHP score of 5
+            // Favor Criterion A (negative slider values)
             ahpValue = Math.abs(sliderPosition) + 1;
             favoredId = idA;
         } else if (sliderPosition > 0) {
-            // Moving right (positive numbers) means the user favors Criterion B
+            // Favor Criterion B (positive slider values)
             ahpValue = sliderPosition + 1;
             favoredId = idB;
         } else {
-            // Dead center
+            // Equal importance
             ahpValue = 1;
         }
 
-        // Execute the callback function passed down from the parent
+        // Dispatch callback
         if (onChange) {
             onChange({ 
                 idA: idA, 

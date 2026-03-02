@@ -1,7 +1,16 @@
-Problem Statement:
-To build a fully client-side application that takes criteria, options, pairwise comparisons, and raw values from a user to evaluate the options and provide a ranked recommendation. The system is domain-agnostic; any decision can be evaluated based on the parameters provided by the user, and the system will explain the mathematical reasoning behind its final recommendation.
 
-Assumptions Made:
+
+## Click here to Run the Application: 
+
+  [Visit the website](https://decision-companion-system-psi.vercel.app/)
+
+
+
+
+## Problem Statement:
+To build a fully client-side application that takes criteria, options, pairwise comparisons, and raw values from a user to evaluate the options and provide a ranked recommendation. The system is domain-agnostic; any decision can be evaluated based on the parameters provided by the user, and the system will explain the reasoning behind its final recommendation.
+
+## Assumptions Made:
 
 1. The user knows and provides the specific options for the decision..
 2. The user provides a raw data value (or an estimated range) for each option against each criterion.
@@ -13,10 +22,9 @@ Assumptions Made:
 8. Independence of Criteria: (This is a fundamental assumption of WSM and AHP math). The system assumes that all criteria are independent of one another. If a user creates two criteria that mean the same thing (e.g., "Price" and "Affordability"), the engine will mathematically double-count that factor without warning the user.
 9. Assumes taht user has max 10 criteria.
 
-The Solution's Core:
+## The Solution's Core:
 
 The core of the solution lies in a hybrid mathematical evaluation engine.
-
 Analytic Hierarchy Process (AHP) is used to establish the criteria weights. It is psychologically easier for a user to compare two criteria directly (A vs. B) than to guess an absolute percentage for a complex list of priorities.
 
 Weighted Sum Model (WSM) is used to calculate the final rankings. Once the raw option values are normalized to a standard scale, WSM provides a highly computationally efficient evaluation using simple linear algebra.
@@ -24,7 +32,7 @@ Weighted Sum Model (WSM) is used to calculate the final rankings. Once the raw o
 The system is designed be a fully client side application and steteless. The application relies entirely on the client's device to perform heavy matrix calculations, guaranteeing absolute data privacy and zero latency.
 The trade-off is that the data is isolated to the local device. Users cannot natively sync their decision history across different devices.
 
-Design Decisions:
+## Design Decisions:
 
 1. Client-Side Framework: Svelte
 
@@ -62,7 +70,7 @@ The Problem: The system must compare drastically different real-world units (e.g
 
 The Solution: Min-Max Scaling. Standardizes all raw inputs onto a clean 0-to-1 scale. It allows seamless handling of "Cost vs. Benefit" polarities by simply inverting the formula for negative traits.
 
-Alternatives Rejected: Z-Score Normalization (strictly assumes a normal distribution of data, which small decision matrices rarely have).
+Alternatives Rejected: Z-Score Normalization (strictly assumes a normal distribution of data, which small decision matrices rarely have), Vector Normalisation.
 
 The Trade-off: High sensitivity to extreme outliers. A single massive outlier option can compress the remaining normal data points into a tiny, indistinguishable fraction of the 0-to-1 scale.
 
@@ -98,9 +106,9 @@ Alternatives Rejected: Complex pagination to hide sliders (fails to solve the co
 
 The Trade-off: Users cannot build massive, unconstrained flat hierarchies. They are forced to consolidate and prioritize their decision-making parameters before utilizing the tool.
 
-Edge cases:
+## Edge cases
 
-### Mathematical Anomalies
+#### Mathematical Anomalies
 
 1. **Zero Variance (The Divide-by-Zero Crash):**
    If a user enters identical raw scores for every single option under a specific criterion, the Min-Max normalization denominator (`max - min`) becomes zero. The engine intercepts this perfect tie and explicitly awards a normalized value of `1` (100%), preventing a `NaN` cascade in JavaScript.
@@ -114,7 +122,18 @@ Edge cases:
 4. **Polymorphic Data Normalization:**
    The engine safely compares absolute numbers against range objects (e.g., `15` vs `{min: 10, max: 20}`) by mathematically translating ranges into Expected Values (averages) _prior_ to calculating column minimums and maximums, preventing `NaN` data poisoning.
 
-### Input Safety & State Management (UI/UX)
+#### Hard Constraints & Evaluation Logic
+
+1. **Missing Data vs. Dealbreakers:**
+   While standard missing data defaults to a score of 0.0 allowing the option to limp along, missing data in a _Dealbreaker_ column triggers an instant **disqualification**. Because dealbreakers are strict non-compensatory gates, the engine takes the pessimistic view: if an option cannot mathematically _prove_ it passes the hard constraint, it fails by default.
+
+2. **Catastrophic Failure / 100% Disqualification Rate:**
+   If a user's dealbreaker constraints are mathematically impossible (e.g., eliminating every single option), the Leaderboard detects the 0-length ranking array and renders a dedicated "Catastrophic Failure" banner rather than crashing the visual render loop.
+
+3. **The "Sole Survivor" Scenario:**
+   If dealbreakers eliminate all but one option, the final mathematical rankings become irrelevant. The Insight Engine detects this ($N-1$ disqualifications) and dynamically alters its narrative to explain the option won via "Elimination" rather than by accumulating the highest WSM point total.
+
+#### Input Safety & State Management (UI/UX)
 
 1. **Inverted Range Correction:**
    If a user inputs a range backwards (e.g., "20-10"), the parser automatically applies `Math.min()` and `Math.max()` to invert the values to their proper logical order before saving to the global store.
@@ -127,8 +146,19 @@ Edge cases:
 
 4. **Floating-Point State Recovery:** Mitigated JavaScript decimal inaccuracies (e.g., calculating `1 / 0.333` as `3.000000003`) by applying strict rounding functions when reverse-engineering saved AHP fractions, ensuring UI sliders re-hydrate to precise integer coordinates on page refresh.
 
-### Concurrency
+#### Concurrency
 
 1. **Cross-Tab State Synchronization (The Split-Brain Desync):**
-   Web browsers isolate memory for each open window.  If Tab A saves new data to the local device, Tab B doesn't automatically know about the update. If the user then switches to Tab B and makes a change, Tab B will blindly overwrite the device's shared memory with its outdated information, permanently destroying the work done in Tab A.
+   Web browsers isolate memory for each open window. If Tab A saves new data to the local device, Tab B doesn't automatically know about the update. If the user then switches to Tab B and makes a change, Tab B will blindly overwrite the device's shared memory with its outdated information, permanently destroying the work done in Tab A.
    By having The application actively listens for background changes to `localStorage` and instantly retrieves fresh data to update its visual interface in real-time, guarantees all open windows remain perfectly synchronized and prevents any data-loss collisions without forcing manual refreshes.
+
+
+####
+
+## Things to improve with time:
+
+1. Ui enhancements
+2. currently support upto 10 criteria, can be improved to handle more than 10 by grouping criterias.
+3. Integrating AI to extract optionsa and criteria from user query.
+4. More adapatable recommendation system.
+5. Ghost Scoring (Missing Data Scenarios): Upgrade the missing data failsafe to calculate Best-Case and Worst-Case scenarios for empty cells instead of just ignoring them. let the user have what if scenerio for the missing cells.

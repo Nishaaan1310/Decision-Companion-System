@@ -1,27 +1,27 @@
 <script lang="ts">
     import type { ScoreValue } from '$lib/stores/decisionStore';
 
-    // 1. Props (Updated to accept the flexible ScoreValue)
+    // Component Properties
     export let value: ScoreValue | undefined = undefined; 
     export let criterionName: string; 
     export let optionName: string; 
     
-    // NEW: The optional text-to-math dictionary
+    // Optional qualitative scale mapping
     export let qualitativeScale: { label: string, value: number }[] | undefined = undefined;
     // The dispatcher function passed down from +page.svelte
     export let onUpdate: ((detail: { value: ScoreValue | undefined }) => void) = () => {};
 
-    // 2. RESTORED: Your unique ID generation!
+    // Unique ID generation for accessibility labels
     const inputId = `cell-${Math.random().toString(36).substring(2, 9)}`;
 
-    // 3. The display string for our new text input
+    // Display state for text input
     let displayValue = '';
 
-    // NEW: The "Lock" that prevents the database from overwriting the box while we type
+    // Edit lock to prevent reactive overwrites during typing
     let isTyping = false;
 
-    // 4. REACTIVE SYNC: If the database value changes, update the text box display
-    // REACTIVE SYNC: Only format the box if the user is NOT actively typing in it
+    // Sync database value to display
+    // Format display only when not actively typing
     $: if (!isTyping) {
         if (value === undefined || value === null) {
             displayValue = '';
@@ -33,19 +33,12 @@
         }
     }
 
-    // 5. RESTORED & UPDATED: Your empty warning logic! 
-    // We now check our string displayValue instead of the raw number
+    // Empty state validation logic
     $: isEmpty = (qualitativeScale && qualitativeScale.length > 0)
         ? (value === undefined || value === null) 
         : (displayValue.trim() === '');
 
-    // TEMPORARY DEBUG: Calculate the average for visual confirmation
-    $: debugAverage = (typeof value === 'object' && value !== null) 
-        ? (value.min + value.max) / 2 
-        : null;
-
-    // 6. THE PARSER: Runs when the user leaves the text box or hits Enter
-    // THE SMART REAL-TIME PARSER (Fires on every keystroke)
+    // Input parser: Handles raw text parsing conditionally
     function handleInput(event: Event){
         isTyping = true; // Lock the text box!
         const target = event.target as HTMLInputElement;
@@ -57,7 +50,7 @@
             return;
         }
 
-        // Scenario B: Check if it's a range (e.g., "10-20", "10~20", "10 to 20")
+        // Verify if input is a valid range (e.g., "10-20", "10~20", "10 to 20")
         // This Regex looks for two numbers separated by a dash, tilde, or the word "to"
 
         const rangeMatch = trimmed.match(/^([\d.]+)\s*[-~|to]+\s*([\d.]+)$/i);
@@ -71,24 +64,21 @@
             }
         }
 
-        // Scenario 2: Is it an INCOMPLETE range? (e.g., "10-" or "10 to ")
+        // Check for incomplete range patterns (e.g., "10-" or "10 to ")
         const isIncompleteRange = /^[\d.]+\s*[-~|to]+\s*$/i.test(trimmed);
         if (isIncompleteRange) {
             // Do absolutely nothing. Patiently let them finish typing.
             return; 
         }
 
-        // Scenario C: If it's not a range, try parsing it as a single standard number
-        // Scenario 3: Is it a strict, single number? (e.g., "15")
-        // We use Number() instead of parseFloat() because Number("15-") is strictly NaN.
+        // Attempt to parse strictly as a single standard number
+        // Strict numeric parsing enforces valid entries.
         const singleNumber = Number(trimmed); 
         if (!isNaN(singleNumber)) {
             onUpdate({ value: singleNumber });
         }
     }
-            // Failsafe Scenario D: They typed pure text like "apples"
-            // Revert the text box back to whatever the last valid database value was.
-            // When they finally click away from the box
+            // Failsafe: Handle invalid or pure text input by reverting on blur
     function handleBlur() {
         isTyping = false; // Unlock the box! Let the database format it cleanly.
         
@@ -103,7 +93,7 @@
             (event.target as HTMLElement).blur(); 
         }
     }
-    // --- NEW: DROPDOWN LOGIC ---
+    // Dropdown selection handler
     function handleSelectChange(event: Event) {
         const target = event.target as HTMLSelectElement;
         const selectedValue = target.value;
@@ -111,7 +101,7 @@
         if (selectedValue === '') {
             onUpdate({ value: undefined });
         } else {
-            // Silently convert their text choice back into the math engine's number!
+            // Convert selected qualitative text to numeric engine value
             onUpdate({ value: Number(selectedValue) });
         }
     }
@@ -149,9 +139,6 @@
         />
     {/if}
 
-    {#if debugAverage !== null}
-        <span class="debug-badge">avg: {debugAverage}</span>
-    {/if}
 
 </div>
 
@@ -189,25 +176,15 @@
         box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
     }
 
-    /* RESTORED: Your empty cell warning style */
+    /* Empty cell validation styling */
     .empty-cell {
         border: 2px solid #ffc107; 
         background-color: #fffdf5;
     }
 
-/* NEW: Add these two rules at the very bottom of your style block */
+/* Tooltip and container positioning */
     .relative-container {
         position: relative;
-    }
-
-    .debug-badge {
-        position: absolute;
-        bottom: -18px;
-        right: 0;
-        font-size: 0.7rem;
-        color: #ef4444; /* Bright red so we know it's temporary */
-        font-weight: bold;
-        pointer-events: none; /* Prevents it from blocking clicks */
     }
 
     .data-select {

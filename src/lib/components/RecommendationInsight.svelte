@@ -3,53 +3,72 @@
     import { calculateItemizedContributions, findDecidingFactor } from '$lib/engine/wsm';
     import type { RankedOption } from '$lib/engine/wsm';
 
-    // Props passed down from the main page
+    // Component Properties
     export let rankings: RankedOption[] = [];
     export let normalizedData: Record<string, Record<string, number>> = {};
     export let weights: number[] = [];
+    export let winners: RankedOption[] = [];
+    export let bestValueOptions: RankedOption[] = [];
 
-    // Local state for the generated text
-    let winnerName = '';
+    // UI State
     let runnerUpName = '';
     let mvpCriterionName = '';
     let decidingCriterionName = '';
-
-    // NEW: State to track if this is the Last Man Standing
     let isSoleSurvivor = false;
 
-    // The Reactive Analysis Engine
-    $: {
-        if (rankings.length > 0 && $criteriaStore.length > 0 && weights.length > 0) {
-            const winner = rankings[0];
-            winnerName = winner.name;
+    // Derived Display Strings
+    $: winnerNames = winners.map(w => w.name).join(' and ');
+    $: bestValueNames = bestValueOptions.map(v => v.name).join(' and ');
 
-            // NEW: True if there is only 1 option OR if the 2nd place option is disqualified
-            isSoleSurvivor = rankings.length < 2 || !!rankings[1]?.isDisqualified;
-            
+    $: isTie = winners.length > 1;
+    $: isValueTie = bestValueOptions.length > 1;
+
+    // Check for presence of cost criteria
+    $: hasCostCriteria = $criteriaStore.some(c => c.isCost);
+
+    // Derived Flags for Recommendation Logic
+    
+    // Check if a single overall winner is also the single best value option
+    $: isSingleWinnerAlsoBestValue = !isTie && !isValueTie && winners[0]?.id === bestValueOptions[0]?.id;
+    
+    // Check if a tie is mathematically resolved by one option having superior value
+    $: isTieBrokenByValue = isTie && !isValueTie && winners.some(w => w.id === bestValueOptions[0]?.id);
+
+    // Core Recommendation Logic Engine
+    $: {
+        // Calculate MVP and deciding factors exclusively for singular winners
+        if (!isTie && winners.length === 1 && $criteriaStore.length > 0 && weights.length > 0) {
+            const winner = winners[0];
             const criteriaIds = $criteriaStore.map(c => c.id);
 
-            // 1. Find the Winner's MVP (Most Valuable Criterion)
+            isSoleSurvivor = rankings.length < 2 || !!rankings[1]?.isDisqualified;
+
+            // Determine the Most Valuable Criterion (MVP)
             const contributions = calculateItemizedContributions(winner.id, criteriaIds, normalizedData, weights);
             if (contributions.length > 0) {
                 const mvpId = contributions[0].criterionId;
                 mvpCriterionName = $criteriaStore.find(c => c.id === mvpId)?.name || 'Unknown';
             }
 
-            // 2. Find the Deciding Factor (if there is a runner-up)
-            if (!isSoleSurvivor &&rankings.length > 1) {
+            // Determine the deciding factor between 1st and 2nd place
+            if (!isSoleSurvivor && rankings.length > 1) {
                 const runnerUp = rankings[1];
-                runnerUpName = runnerUp.name;
-
+                runnerUpName = runnerUp.name; 
                 const insight = findDecidingFactor(winner.id, runnerUp.id, criteriaIds, normalizedData, weights);
                 if (insight) {
                     decidingCriterionName = $criteriaStore.find(c => c.id === insight.decidingCriterionId)?.name || '';
                 } else {
-                    decidingCriterionName = ''; // It was a perfect mathematical tie
+                    decidingCriterionName = '';
                 }
             } else {
                 runnerUpName = '';
                 decidingCriterionName = '';
             }
+        } else {
+            // Clear state for ties or empty data
+            runnerUpName = '';
+            mvpCriterionName = '';
+            decidingCriterionName = '';
         }
     }
 </script>
@@ -58,32 +77,60 @@
     <div class="insight-card">
         <h3>💡 Decision Insight</h3>
 
-        {#if isSoleSurvivor}
+        {#if isTie}
+            <p class="primary-insight tie-text">
+                ⚖️ <strong>Tie Detected:</strong> <strong>{winnerNames}</strong> received identical overall scores based on your current priorities. 
+                Consider adjusting your criteria weights or adding a secondary constraint to narrow down the selection.
+            </p>
+
+        {:else if isSoleSurvivor}
             <p class="primary-insight sole-survivor-text">
-                <strong>{winnerName}</strong> is your recommended choice by default. 
+                <strong>{winners[0].name}</strong> is your recommended choice by default. 
                 It is the <em>only</em> option that successfully met all of your hard constraints and dealbreakers!
             </p>
             <p class="secondary-insight">
                 Even though it won by elimination, its strongest contributing factor based on your priorities is still its performance in <strong>{mvpCriterionName}</strong>.
             </p>
 
-            {:else}
-            
+        {:else}
             <p class="primary-insight">
-                Based on your priorities, <strong>{winnerName}</strong> is your top recommendation. 
-                Its strongest contributing factor is its performance in <strong>{mvpCriterionName}</strong>.
+                Based on your weighted priorities, <strong>{winners[0].name}</strong> is the optimal recommendation. 
+                Its strongest mathematical contributing factor is its performance in <strong>{mvpCriterionName}</strong>.
             </p>
 
             {#if runnerUpName && decidingCriterionName}
                 <p class="secondary-insight">
-                    While <strong>{runnerUpName}</strong> was a strong alternative, <strong>{winnerName}</strong> secured the win primarily because it outperformed the runner-up significantly in <strong>{decidingCriterionName}</strong>.
-                </p>
-            {:else if runnerUpName && !decidingCriterionName}
-                <p class="secondary-insight">
-                    Fascinatingly, <strong>{winnerName}</strong> and <strong>{runnerUpName}</strong> are a perfect mathematical tie across all your criteria!
+                    While <strong>{runnerUpName}</strong> was a competitive alternative, <strong>{winners[0].name}</strong> secured the highest rank primarily by outperforming the runner-up in <strong>{decidingCriterionName}</strong>.
                 </p>
             {/if}
         {/if}
+
+        {#if hasCostCriteria && !isSoleSurvivor}
+            <div class="value-insight-box">
+                
+                {#if isTieBrokenByValue}
+                    <p class="value-insight">
+                        💡 <strong>Tie-Breaker Recommendation:</strong> While the overall scores are tied, <strong>{bestValueOptions[0].name}</strong> serves as the mathematical tie-breaker due to yielding a strictly superior benefit-to-cost ratio.
+                    </p>
+
+                {:else if isValueTie}
+                    <p class="value-insight alt-value">
+                        📊 <strong>Efficiency Leaders:</strong> For maximum resource efficiency, <strong>{bestValueNames}</strong> offer the highest proportional benefit-to-cost ratios among all evaluated options.
+                    </p>
+
+                {:else if isSingleWinnerAlsoBestValue}
+                    <p class="value-insight">
+                        🎯 <strong>Optimal Choice:</strong> Not only is <strong>{winners[0].name}</strong> the highest-scoring option overall, but it also provides the greatest resource efficiency with the highest benefit-to-cost ratio.
+                    </p>
+
+                {:else}
+                    <p class="value-insight alt-value">
+                        💰 <strong>Value Alternative:</strong> While {winnerNames} achieved the highest overall score, if cost-efficiency is your primary constraint, <strong>{bestValueNames}</strong> yields a superior benefit-to-cost ratio.
+                    </p>
+                {/if}
+            </div>
+        {/if}
+
     </div>
 {/if}
 
@@ -131,8 +178,32 @@
         border-radius: 4px;
     }
 
-    /* Add a subtle green highlight to celebrate finding a valid option */
+    /* Highlight for sole survivor option */
     .sole-survivor-text strong {
         color: #16a34a; 
     }
+
+    /* Styles for value-based insights */
+    .value-insight-box {
+        margin-top: 1.25rem;
+        padding-top: 1rem;
+        border-top: 1px dashed #cbd5e1;
+    }
+    .value-insight {
+        font-size: 0.95rem;
+        color: #15803d; /* Green for value/money */
+        margin: 0;
+        line-height: 1.5;
+    }
+
+    .alt-value {
+        color: #6d28d9; /* Purple for the alternative option */
+    }
+    
+    /* Styles for tie states */
+    .tie-text strong {
+        color: #b45309; /* Deep amber to indicate a warning/unresolved state */
+        background-color: #fef3c7;
+    }
+
 </style>

@@ -66,13 +66,13 @@
     }
 
     .table-container {
-        overflow-x: auto; /* Keeps the table horizontally scrollable on small screens */
+        overflow-x: auto; /* Enable horizontal scrolling for responsive layout */
     }
 
     .data-table {
         width: 100%;
         border-collapse: collapse;
-        min-width: 600px; /* Prevents columns from squishing too much */
+        min-width: 600px; /* Minimum width to preserve column legibility */
     }
 
     .data-table th, .data-table td {

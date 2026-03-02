@@ -2,7 +2,7 @@
 
 /**
  * Builds an NxN pairwise comparison matrix for the AHP calculation.
- * * @param criteriaIds - An array of the criterion IDs in a fixed order.
+ * @param criteriaIds - An array of the criterion IDs in a fixed order.
  * @param comparisons - The dictionary of slider values from the store.
  * @returns A 2D array of numbers representing the mathematical matrix.
  */
@@ -44,19 +44,19 @@ export function calculateWeights(matrix: number[][]): number[] {
     const n = matrix.length;
     const columnSums = new Array(n).fill(0);
 
-    // Step 1: Calculate the sum of each column
+    // Calculate the sum of each column
     for (let j = 0; j < n; j++) {
         for (let i = 0; i < n; i++) {
             columnSums[j] += matrix[i][j];
         }
     }
 
-    // Step 2: Normalize the matrix (divide each cell by its column sum)
+    // Normalize the matrix (divide each cell by its column sum)
     const normalizedMatrix = matrix.map((row) => 
         row.map((val, j) => val / columnSums[j])
     );
 
-    // Step 3: Calculate the final weight (average of each normalized row)
+    // Calculate the final weight (average of each normalized row)
     const weights = normalizedMatrix.map(row => {
         const rowSum = row.reduce((sum, val) => sum + val, 0);
         return rowSum / n;
@@ -81,22 +81,22 @@ export function calculateConsistencyRatio(matrix: number[][], weights: number[])
     // CR is mathematically irrelevant for less than 3 criteria
     if (n < 3) return 0;
 
-    // Step 1: Calculate the weighted sum vector (Matrix * Weights)
+    // Calculate the weighted sum vector (Matrix * Weights)
     const weightedSumVector = matrix.map(row => {
         return row.reduce((sum, val, j) => sum + (val * weights[j]), 0);
     });
 
-    // Step 2: Calculate Lambda Max (Average of weighted sum / weight)
+    // Calculate Lambda Max (Average of weighted sum / weight)
     let lambdaMax = 0;
     for (let i = 0; i < n; i++) {
         lambdaMax += (weightedSumVector[i] / weights[i]);
     }
     lambdaMax = lambdaMax / n;
 
-    // Step 3: Calculate Consistency Index (CI)
+    // Calculate Consistency Index (CI)
     const CI = (lambdaMax - n) / (n - 1);
 
-    // Step 4: Calculate Consistency Ratio (CR)
+    // Calculate Consistency Ratio (CR)
     const CR = CI / RI[n];
 
     return CR;

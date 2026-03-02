@@ -183,7 +183,6 @@ Resolved a critical mathematical vulnerability where missing data inputs were de
    - Deployed the same strict, case-insensitive "Hard Block" validation layer (`isDuplicate` helper) used in the Criteria Builder to the new Options Builder.
    - This ensures a user can never accidentally create two identically named choices (e.g., two cars both named "Honda Civic"), which would render the final mathematical leaderboard confusing.
 
-
 (01/03/2026 02:30) Progression:
 
 **The Explainable Recommendation Engine**
@@ -340,6 +339,39 @@ Implemented a vital abstraction layer allowing the UI to collect subjective inpu
 - Built a seamless translation bridge inside `DataCell.svelte`: When a user selects a textual option like "Excellent" from the dropdown, the component intercepts the interaction, looks up the numeric representation (`5`), and dispatches the _number_ to the global `optionsStore`.
 - _Architectural Win_: This ensures that the core math execution engines (`wsm.ts` and `ahp.ts`) require zero code alterations. They remain strictly mathematical, unaware that the data originated from qualitative text selections.
 
-Changes:
+Minor Changes:
 
-**UX Improvements (Criteria Builder):** - Fixed discoverability issues by moving the Dealbreaker UI out of the "Edit-only" state and natively into the inline Creation form.
+**UX Improvements (Criteria Builder):**
+
+- Fixed discoverability issues by moving the Dealbreaker UI out of the "Edit-only" state and natively into the inline Creation form.
+
+**(03/02/2026 07:15) Pareto Frontier Value Tracking & Tie-Breaker Engine Logic**
+
+**The Pareto Frontier (Best Value):**
+
+- The engine now separates "Benefit" criteria from "Cost" criteria to calculate a pure efficiency ratio. It automatically finds the option that gives the most "Best value" and crowns it with the 💎 Best Value badge.
+- Implemented in `wsm.ts` (`calculateWsmScores`) by splitting raw weighted values into `benefitScore` and `costScore` accumulators to yield a single global `valueRatio` metric.
+- `Leaderboard.svelte` reactively filters the rankings to find all options holding `topValueRatio` to distribute the `💎 Best Value` badge.
+
+**Absolute Baseline Normalization:**
+
+- The WSM math was completely overhauled. It now anchors to an absolute 0, meaning real-world proportions (like a $1 discount vs. a $500 discount) are calculated perfectly without crashing the app.
+- Implemented in `wsm.ts` by removing relative `min` anchors and relying exclusively on absolute `maxScore` scaling (i.e. measuring from zero up to the highest recorded value).
+
+**The "False MVP" Fix:**
+
+- The engine is now smart enough to realize that if every option scores 100% on a criterion, that criterion cannot be the deciding factor. It filters out ties to isolate the true competitive advantage.
+- Implemented an `isTieAcrossBoard = (maxScore === minScore)` zero-variance check inside `calculateItemizedContributions`. If true, the effective insight weight is evaluated at `0` to prevent false positive declarations.
+
+**True Multi-Winner Support:**
+
+- The UI no longer lies by grabbing index `[0]` when two options share the exact same score. The Leaderboard accurately highlights all tied options, and the Insight paragraph explicitly names them.
+- Implemented in `Leaderboard.svelte` by deprecating singular index checks in favor of plural `winners = validRankings.filter(r => r.score === topScore)` array tracking.
+
+**Intelligent Tie-Breaking:**
+
+- If two options tie for 1st place, but one of them sits higher on the Pareto frontier (better value), the engine officially declares it the logical Tie-Breaker.
+- Implemented in `RecommendationInsight.svelte` using boolean map states (`isTie`, `isValueTie`, `isTieBrokenByValue`) that dynamically compile the narrative by detecting if the `winners` array overlaps with the `bestValueOptions` array.
+
+
+### end

@@ -3,14 +3,14 @@
 
     let newOptionName = '';
 
-    // State for inline editing
+    // Inline editing state
     let editingId: string | null = null;
     let editName: string = '';
 
-    // The validation error state
+    // Error message state
     let errorMessage = '';
 
-    // The core validation engine for Options
+    // Option duplicate validation
     function isDuplicate(nameToCheck: string, ignoreId: string | null = null): boolean {
         const normalized = nameToCheck.trim().toLowerCase();
         return $optionsStore.some(
@@ -19,18 +19,18 @@
     }
 
     function handleAdd() {
-        errorMessage = ''; // Clear previous errors
+        errorMessage = ''; // Reset error state
         const trimmed = newOptionName.trim();
 
         if (trimmed !== '') {
-            // Check the validation gate
+            // Validate against existing options
             if (isDuplicate(trimmed)) {
                 errorMessage = `An option named "${trimmed}" already exists.`;
-                return; // Abort the save
+                return;
             }
 
             addOption(trimmed);
-            newOptionName = ''; // Reset input
+            newOptionName = ''; 
         }
     }
 
@@ -41,18 +41,17 @@
     }
 
     function saveEdit() {
-        errorMessage = ''; // Clear previous errors
+        errorMessage = '';
         const trimmed = editName.trim();
 
         if (trimmed && editingId) {
-            // Check the gate (ignoring its own ID)
+            // Validate against duplicates, excluding the current option
             if (isDuplicate(trimmed, editingId)) {
                 errorMessage = `Name "${trimmed}" is already taken.`;
-                return; // Abort the save, stay in edit mode
+                return;
             }
 
-            // Assuming you have an updateOptionName function in your store. 
-            // If not, we can write it!
+            // Persist the updated name
             updateOptionName(editingId, trimmed);
         }
         editingId = null;
